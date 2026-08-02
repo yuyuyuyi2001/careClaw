@@ -32,7 +32,7 @@ class ConfigGetTool(
                 parameters = ParametersSchema(
                     type = "object",
                     properties = mapOf(
-                        "path" to PropertySchema("string", "Dot path, e.g. channels.feishu.appId")
+                        "path" to PropertySchema("string", "Dot path, e.g. gateway.port")
                     ),
                     required = listOf("path")
                 )

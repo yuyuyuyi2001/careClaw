@@ -274,15 +274,9 @@ class SkillStatusBuilder(private val context: Context) {
     private fun getConfigValue(path: String, config: com.shijing.xomniclaw.config.XOmniClawConfig): Any? {
         val parts = path.split(".")
         return when {
-            parts.size >= 2 && parts[0] in listOf("gateway", "channels") -> {
+            parts.size >= 2 && parts[0] == "gateway" -> {
                 when (parts.getOrNull(1)) {
                     "enabled" -> true
-                    "feishu" -> when (parts.getOrNull(2)) {
-                        "appId" -> config.channels.feishu.appId.takeIf { it.isNotEmpty() }
-                        "appSecret" -> config.channels.feishu.appSecret.takeIf { it.isNotEmpty() }
-                        "enabled" -> config.channels.feishu.enabled
-                        else -> null
-                    }
                     else -> null
                 }
             }

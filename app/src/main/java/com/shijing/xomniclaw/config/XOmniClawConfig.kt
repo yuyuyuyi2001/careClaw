@@ -8,7 +8,6 @@ package com.shijing.xomniclaw.config
  * XOmniClaw adaptation: Kotlin config model aligned to XOmniClaw schema.
  */
 
-
 /**
  * XOmniClaw Config — 对齐 XOmniClaw types.xomniclaw.d.ts
  *
@@ -21,7 +20,6 @@ data class XOmniClawConfig(
     val thinking: ThinkingConfig = ThinkingConfig(),
     val models: ModelsConfig? = null,
     val agents: AgentsConfig? = null,
-    val channels: ChannelsConfig = ChannelsConfig(),
     val gateway: GatewayConfig = GatewayConfig(),
     val skills: SkillsConfig = SkillsConfig(),
     val plugins: PluginsConfig = PluginsConfig(),
@@ -50,120 +48,7 @@ data class XOmniClawConfig(
         return agents?.defaults?.model?.primary ?: agent.defaultModel
     }
 
-    /** 兼容旧代码：gateway.feishu → channels.feishu */
-    val feishuConfig: FeishuChannelConfig get() = channels.feishu
 }
-
-// ============ channels（对齐 types.channels.d.ts）============
-
-data class ChannelsConfig(
-    val feishu: FeishuChannelConfig = FeishuChannelConfig(),
-    val discord: DiscordChannelConfig? = null
-)
-
-data class FeishuChannelConfig(
-    // 基础
-    val enabled: Boolean = false,
-    val appId: String = "",
-    val appSecret: String = "",
-    val encryptKey: String? = null,
-    val verificationToken: String? = null,
-    val domain: String = "feishu",
-    val connectionMode: String = "websocket",
-    val webhookPath: String = "/feishu/events",
-    val webhookHost: String? = null,
-    val webhookPort: Int? = null,
-    // 策略
-    val dmPolicy: String = "open",
-    val allowFrom: List<String> = emptyList(),
-    val groupPolicy: String = "open",
-    val groupAllowFrom: List<String> = emptyList(),
-    val requireMention: Boolean = true,
-    val groupCommandMentionBypass: String = "never",
-    val allowMentionlessInMultiBotGroup: Boolean = false,
-    val groupSessionScope: String? = null,
-    val topicSessionMode: String = "disabled",
-    val replyInThread: String = "disabled",
-    // 历史 (aligned with OmniClaw: optional, no limit if not configured)
-    val historyLimit: Int? = null,
-    val dmHistoryLimit: Int? = null,
-    // 消息
-    val textChunkLimit: Int = 4000,
-    val chunkMode: String = "length",
-    val renderMode: String = "auto",
-    val streaming: Boolean? = null,
-    // 媒体
-    val mediaMaxMb: Double = 20.0,
-    // 工具
-    val tools: FeishuToolsConfig = FeishuToolsConfig(),
-    // 队列（Android 扩展）
-    val queueMode: String? = "followup",
-    val queueCap: Int = 10,
-    val queueDropPolicy: String = "old",
-    val queueDebounceMs: Int = 100,
-    // UX
-    val typingIndicator: Boolean = true,
-    val resolveSenderNames: Boolean = true,
-    val reactionNotifications: String = "own",
-    val reactionDedup: Boolean = true,
-    // 调试
-    val debugMode: Boolean = false,
-    // 多账号
-    val accounts: Map<String, FeishuAccountConfig>? = null,
-    val defaultAccount: String? = null
-)
-
-data class FeishuToolsConfig(
-    val doc: Boolean = true,
-    val chat: Boolean = true,
-    val wiki: Boolean = true,
-    val drive: Boolean = true,
-    val perm: Boolean = false,
-    val scopes: Boolean = true,
-    val bitable: Boolean = true,
-    val task: Boolean = true,
-    val urgent: Boolean = true
-)
-
-data class FeishuAccountConfig(
-    val enabled: Boolean = true,
-    val name: String? = null,
-    val appId: String? = null,
-    val appSecret: String? = null,
-    val domain: String? = null,
-    val connectionMode: String? = null,
-    val webhookPath: String? = null
-)
-
-data class DiscordChannelConfig(
-    val enabled: Boolean = false,
-    val token: String? = null,
-    val name: String? = null,
-    val dm: DmPolicyConfig? = null,
-    val groupPolicy: String? = null,
-    val guilds: Map<String, GuildPolicyConfig>? = null,
-    val replyToMode: String? = null,
-    val accounts: Map<String, DiscordAccountPolicyConfig>? = null
-)
-
-data class DmPolicyConfig(
-    val policy: String? = "pairing",
-    val allowFrom: List<String>? = null
-)
-
-data class GuildPolicyConfig(
-    val channels: List<String>? = null,
-    val requireMention: Boolean? = true,
-    val toolPolicy: String? = null
-)
-
-data class DiscordAccountPolicyConfig(
-    val enabled: Boolean? = true,
-    val token: String? = null,
-    val name: String? = null,
-    val dm: DmPolicyConfig? = null,
-    val guilds: Map<String, GuildPolicyConfig>? = null
-)
 
 // ============ gateway（对齐 types.gateway.d.ts）============
 

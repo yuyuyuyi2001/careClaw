@@ -23,6 +23,8 @@
 
     <!-- 服务权限 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.MEDIA_PROJECTION" />
@@ -149,27 +151,6 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
 
-        <!-- Channel 列表页面 -->
-        <activity
-            android:name="com.shijing.xomniclaw.ui.activity.ChannelListActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
-
-        <!-- Feishu Channel 配置页面 -->
-        <activity
-            android:name="com.shijing.xomniclaw.ui.activity.FeishuChannelActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
-
-        <!-- Discord Channel 配置页面 -->
-        <activity
-            android:name="com.shijing.xomniclaw.ui.activity.DiscordChannelActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
-
         <!-- 结果Activity -->
         <activity
             android:name="com.shijing.xomniclaw.ui.activity.ResultActivity"
@@ -261,6 +242,33 @@
                 <action android:name="PHONE_FORCLAW_SEND_MESSAGE" />
             </intent-filter>
         </receiver>
+    
+        <!-- 观察层（原 extensions/observer 折叠进 app） -->
+        <activity
+            android:name="com.shijing.xomniclaw.accessibility.PermissionActivity"
+            android:exported="true" />
+
+        <service
+            android:name="com.shijing.xomniclaw.accessibility.service.PhoneAccessibilityService"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <service
+            android:name="com.shijing.xomniclaw.accessibility.service.AccessibilityBinderService"
+            android:exported="false" />
+
+        <service
+            android:name="com.shijing.xomniclaw.accessibility.ObserverForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+
     </application>
 
 </manifest>

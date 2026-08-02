@@ -657,7 +657,7 @@ class UnifiedLLMProvider(private val context: Context) {
                 "没有可用的模型配置，请先配置模型。" +
                     "请确认 /sdcard/.xomniclaw/xomniclaw.json 中 models.providers 非空，" +
                     "且 agents.defaults.model.primary 指向存在的 provider/模型 id；" +
-                    "若曾启用飞书但未填写 appId/appSecret，请更新应用版本或暂时关闭 channels.feishu.enabled。"
+                    "模型未配置，请在设置中填写 API Key。"
             )
         }
 

@@ -201,4 +201,28 @@
     <string name="language_english">English</string>
     <string name="language_chinese">中文</string>
     <string name="language_change_restart">语言已更改。请重启应用以使更改生效。</string>
+
+    <string name="permission_activity_title">权限设置</string>
+    <string name="accessibility_permission_title">无障碍权限</string>
+    <string name="accessibility_permission_desc">用于UI控制和自动化操作</string>
+    <string name="screen_capture_permission_title">屏幕捕获权限</string>
+    <string name="screen_capture_permission_desc">用于截取屏幕截图</string>
+    <string name="permission_status_granted">已授予</string>
+    <string name="permission_status_not_granted">未授予</string>
+    <string name="permission_request">请求权限</string>
+    <string name="permission_open_settings">打开设置</string>
+    <string name="button_enable">启用</string>
+    <string name="button_disable">禁用</string>
+    <string name="button_retry">重试</string>
+    <string name="button_close">关闭</string>
+    <string name="toast_permission_granted">权限已授予</string>
+    <string name="toast_permission_denied">权限被拒绝</string>
+    <string name="toast_accessibility_enabled">无障碍服务已启用</string>
+    <string name="toast_accessibility_disabled">无障碍服务已禁用</string>
+    <string name="toast_screen_capture_granted">录屏权限已授予</string>
+    <string name="toast_screen_capture_denied">录屏权限被拒绝</string>
+    <string name="notification_channel_name">服务状态</string>
+    <string name="notification_channel_desc">显示服务运行状态</string>
+    <string name="notification_title">Screen4Claw 服务运行中</string>
+    <string name="notification_content">无障碍和屏幕捕获服务已激活</string>
 </resources>

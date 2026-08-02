@@ -3074,38 +3074,6 @@ fun SettingsTab(
             }
         }
 
-        // Channels 按钮
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            onClick = {
-                val intent = Intent(context, ChannelListActivity::class.java)
-                context.startActivity(intent)
-            }
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Channels"
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        text = "Channels",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = "配置多渠道接入（飞书等）",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-
         // 查看 xomniclaw.json（交互对齐「状态」页 MEMORY.md：概要文案 +「查看 xomniclaw.json」按钮 + 应用内全文对话框）
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(

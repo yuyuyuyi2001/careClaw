@@ -199,10 +199,6 @@ class ConfigActivity : AppCompatActivity() {
                 startActivity(Intent(this@ConfigActivity, SkillsActivity::class.java))
             }
 
-            // Channels management entry
-            cardChannels.setOnClickListener {
-                startActivity(Intent(this@ConfigActivity, ChannelListActivity::class.java))
-            }
 
             // Check update card
             val updater = AppUpdater(this@ConfigActivity)

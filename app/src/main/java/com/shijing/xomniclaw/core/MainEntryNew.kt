@@ -481,11 +481,7 @@ object MainEntryNew {
         // 1. Read dmHistoryLimit from config (per-channel, per-user)
         // 2. If not configured → no truncation (undefined → limitHistoryTurns returns all)
         // 3. AgentLoop's context pruning (soft trim / hard clear) handles oversized context
-        val dmHistoryLimit: Int? = try {
-            val openClawConfig = configLoader?.loadOmniClawConfig()
-            // Check channels.feishu.dmHistoryLimit (or channels.android.dmHistoryLimit)
-            openClawConfig?.channels?.feishu?.dmHistoryLimit
-        } catch (_: Exception) { null }
+        val dmHistoryLimit: Int? = null
 
         // Aligned with X-OmniClaw: if dmHistoryLimit not configured, send all history
         // AgentLoop's context pruning (pruneHistoryForContextShare-aligned) handles oversized context

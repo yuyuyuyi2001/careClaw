@@ -946,11 +946,9 @@ class SkillsLoader(private val context: Context) {
             // Use dot-path resolution
             val parts = configKey.split(".")
             when {
-                parts.size >= 2 && parts[0] in listOf("gateway", "channels") -> {
+                parts.size >= 2 && parts[0] == "gateway" -> {
                     when (parts.getOrNull(1)) {
                         "enabled" -> true
-                        "feishu" -> config.channels.feishu.enabled
-                        "discord" -> config.channels.discord?.enabled ?: false
                         else -> false
                     }
                 }

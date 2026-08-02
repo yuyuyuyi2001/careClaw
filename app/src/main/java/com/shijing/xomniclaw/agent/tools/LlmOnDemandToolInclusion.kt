@@ -165,7 +165,7 @@ object LlmOnDemandToolInclusion {
     private fun wantsUniversalConfigOps(u: String, low: String): Boolean {
         if (u.contains("配置") || u.contains("config") || (u.contains("设置") && (u.contains("读取") || u.contains("修改")))) return true
         if (low.contains("config_get") || low.contains("config_set")) return true
-        if (low.contains("xomniclaw.json") || low.contains("channels.feishu") || low.contains("models.providers")) return true
+        if (low.contains("xomniclaw.json") || low.contains("models.providers")) return true
         return false
     }
 

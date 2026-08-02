@@ -73,8 +73,6 @@ class AndroidToolRegistry(
         register(LogSkill())                 // Log
         register(SystemSettingsSkill(context)) // System settings: Bluetooth, WiFi, Airplane mode, etc.
 
-        // === Feishu image (kept as direct tool — media upload needs special handling) ===
-        register(FeishuSendImageSkill(context))
 
         Log.d(TAG, "✅ Registered ${tools.size} Android platform tools")
     }

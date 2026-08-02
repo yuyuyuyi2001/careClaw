@@ -232,12 +232,8 @@ dependencies {
     implementation 'com.github.princekin-f:EasyFloat:2.0.4'
 
     // ========== Extensions ==========
-    implementation project(':extensions:feishu')
-    implementation project(':extensions:discord')
-    implementation project(':extensions:observer')
 
     // ========== Self-Control Module ==========
-    implementation project(':self-control')
 
     // ========== Jetpack Compose 依赖 (匹配 Kotlin 1.8.20) ==========
     def compose_version = "1.4.3"

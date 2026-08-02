@@ -195,7 +195,7 @@ data class SkillRequires(
 
     /**
      * Required config paths (xomniclaw.json path checks)
-     * e.g.: ["channels.feishu.appId"]
+     * e.g.: ["gateway.port"]
      */
     val config: List<String> = emptyList()
 ) {

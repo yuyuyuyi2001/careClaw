@@ -32,7 +32,7 @@ class ConfigSetTool(
                 parameters = ParametersSchema(
                     type = "object",
                     properties = mapOf(
-                        "path" to PropertySchema("string", "Dot path, e.g. channels.feishu.enabled"),
+                        "path" to PropertySchema("string", "Dot path, e.g. gateway.port"),
                         "value" to PropertySchema("string", "Value to write; strings like true/false are also accepted")
                     ),
                     required = listOf("path", "value")

@@ -18,8 +18,6 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import com.shijing.xomniclaw.accessibility.audio.AudioPreprocessorConfig
-import com.shijing.xomniclaw.accessibility.audio.ObserverAudioPreprocessor
 import com.shijing.xomniclaw.config.VisionConfig
 import com.shijing.xomniclaw.util.MediaProjectionHelper
 import org.json.JSONObject
@@ -95,7 +93,6 @@ class VoiceRecorderManager(private val context: Context) {
 
     /** 复用本地 Hub，保留最近对话上下文（对齐 xomniclaw_hub_v2.py 的 chat_history_brain）。 */
     private var localHub: LocalVoiceVisionHub = LocalVoiceVisionHub(context.applicationContext, visionConfig)
-    private var audioPreprocessor: ObserverAudioPreprocessor? = null
 
     private var audioRecord: AudioRecord? = null
     private var recordingJob: Job? = null
@@ -170,14 +167,6 @@ class VoiceRecorderManager(private val context: Context) {
             }
 
             pcmBuffer = ByteArrayOutputStream()
-            audioPreprocessor?.release()
-            audioPreprocessor = ObserverAudioPreprocessor(
-                context = context.applicationContext,
-                config = buildAudioPreprocessorConfig(visionConfig),
-                mediaProjectionProvider = { MediaProjectionHelper.getMediaProjection() }
-            ).also { preprocessor ->
-                preprocessor.start(audioRecord?.audioSessionId ?: 0)
-            }
             audioRecord?.startRecording()
             _isListening.value = true
             Log.i(TAG, "Started recording (PCM 16kHz mono, aec=${visionConfig.aecEnabled})")
@@ -188,7 +177,7 @@ class VoiceRecorderManager(private val context: Context) {
                 while (isActive && _isListening.value) {
                     val read = audioRecord?.read(buffer, 0, buffer.size) ?: -1
                     if (read > 0) {
-                        val processed = audioPreprocessor?.processCapturePcm(buffer, read) ?: buffer.copyOf(read)
+                        val processed = buffer.copyOf(read)
                         pcmBuffer?.write(processed, 0, processed.size)
                     }
                 }
@@ -237,7 +226,6 @@ class VoiceRecorderManager(private val context: Context) {
         } catch (e: Exception) {
             Log.w(TAG, "Error stopping AudioRecord: ${e.message}")
         }
-        audioPreprocessor?.stop()
         audioRecord = null
         Log.i(TAG, "Stopped recording")
 
@@ -282,8 +270,6 @@ class VoiceRecorderManager(private val context: Context) {
             audioRecord?.stop()
             audioRecord?.release()
         } catch (_: Exception) {}
-        audioPreprocessor?.release()
-        audioPreprocessor = null
         audioRecord = null
         pcmBuffer = null
         pressStartTimestampMs = null
@@ -293,16 +279,6 @@ class VoiceRecorderManager(private val context: Context) {
     /**
      * 将 Vision 配置转换为观察层音频预处理配置，避免录音管理器直接关心底层实现细节。
      */
-    private fun buildAudioPreprocessorConfig(vision: VisionConfig): AudioPreprocessorConfig {
-        return AudioPreprocessorConfig(
-            enabled = vision.aecEnabled,
-            preferWebRtcAec = vision.aecPreferWebRtc,
-            enablePlaybackCapture = vision.aecPlaybackCaptureEnabled,
-            enableSystemAecFallback = vision.aecSystemFallbackEnabled,
-            sampleRateHz = SAMPLE_RATE,
-            frameSizeSamples = 160
-        )
-    }
 
     /**
      * 端侧 [LocalVoiceVisionHub]：STT → 多模态理解与动作输出（与历史 PC Hub /sync_audio 响应形状一致）。
