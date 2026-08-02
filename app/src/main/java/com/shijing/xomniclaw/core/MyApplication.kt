@@ -166,6 +166,13 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
         // Initialize Workspace (aligned with OmniClaw)
         initializeWorkspace()
 
+        // 启动 HTTP 入口（备用远程通道；token 默认 careclaw，可在配置页修改）
+        runCatching {
+            val token = MMKV.defaultMMKV()
+                .decodeString(com.shijing.xomniclaw.util.MMKVKeys.GATEWAY_AUTH_TOKEN.key, "careclaw")
+            com.shijing.xomniclaw.remote.GatewayService.start(this, token)
+        }
+
 
         // Register global exception handler
         Thread.setDefaultUncaughtExceptionHandler(GlobalExceptionHandler())

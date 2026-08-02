@@ -18,6 +18,7 @@ import com.shijing.xomniclaw.agent.tools.memory.MemorySearchSkill
 import com.shijing.xomniclaw.agent.tools.device.DeviceToolSkillAdapter
 import com.shijing.xomniclaw.data.model.TaskDataManager
 import com.shijing.xomniclaw.providers.ToolDefinition
+import com.shijing.xomniclaw.safety.EmergencyStopSkill
 
 /**
  * Android Tool Registry
@@ -68,6 +69,7 @@ class AndroidToolRegistry(
 
         // === Control tools ===
         register(StopSkill(taskDataManager)) // Stop
+        register(EmergencyStopSkill(taskDataManager)) // 一键停止（安全层）
         register(LogSkill())                 // Log
         register(SystemSettingsSkill(context)) // System settings: Bluetooth, WiFi, Airplane mode, etc.
 

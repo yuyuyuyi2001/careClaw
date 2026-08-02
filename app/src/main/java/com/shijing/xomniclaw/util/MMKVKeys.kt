@@ -61,5 +61,8 @@ enum class MMKVKeys(val key: String) {
     // Token usage aggregation (global persisted counters)
     GLOBAL_TOKEN_PROMPT_TOTAL("global_token_prompt_total"),
     GLOBAL_TOKEN_COMPLETION_TOTAL("global_token_completion_total"),
-    GLOBAL_TOKEN_TOTAL("global_token_total")
+    GLOBAL_TOKEN_TOTAL("global_token_total"),
+
+    // HTTP 入口鉴权 token（备用远程通道，P4）
+    GATEWAY_AUTH_TOKEN("gateway_auth_token")
 }

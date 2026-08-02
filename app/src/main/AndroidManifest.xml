@@ -163,36 +163,22 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
-        <!-- 定时任务执行前台服务（降低后台触发后实际执行延迟） -->
-        <service
-            android:name="com.shijing.xomniclaw.scheduler.ScheduledTaskExecutionService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
         <!-- 相册记忆手动扫描前台服务（支持切后台后继续执行并展示进度） -->
         <service
             android:name="com.shijing.xomniclaw.agent.memory.gallery.GalleryMemorySyncForegroundService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <!-- HTTP 入口（备用远程通道） -->
+        <service
+            android:name="com.shijing.xomniclaw.remote.GatewayService"
+            android:enabled="true"
+            android:exported="false" />
 
         <!-- 观察能力(UI Tree + Screenshot)已移至独立模块 extensions/observer -->
 
         <!-- 定时任务亮屏页（短生命周期，负责在息屏/锁屏场景下辅助拉起执行环境） -->
-        <activity
-            android:name="com.shijing.xomniclaw.scheduler.ScheduledTaskWakeActivity"
-            android:excludeFromRecents="true"
-            android:exported="false"
-            android:finishOnTaskLaunch="true"
-            android:launchMode="singleInstance"
-            android:noHistory="true"
-            android:showWhenLocked="true"
-            android:turnScreenOn="true"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-        <service
-            android:name="com.shijing.xomniclaw.service.WebService"
-            android:enabled="true"
-            android:exported="true" /> <!-- 文件提供者 - 系统级权限 -->
+        <!-- 文件提供者 - 系统级权限 -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"
@@ -203,12 +189,6 @@
                 android:resource="@xml/provider_paths" />
         </provider>
 
-        <!-- APK安装结果广播接收器 -->
-        <receiver
-            android:name="com.shijing.xomniclaw.util.InstallManager$InstallResultBroadcastReceiver"
-            android:enabled="true"
-            android:exported="true"
-            tools:ignore="Instantiatable" />
         <!-- Agent消息广播接收器 -->
         <receiver
             android:name="com.shijing.xomniclaw.core.AgentMessageReceiver"
