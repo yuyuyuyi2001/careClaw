@@ -34,17 +34,9 @@ data class RefNode(
 class RefManager {
     companion object {
         private const val TAG = "RefManager"
-        private const val CAPCUT_PKG = "com.lemon.lv"
-        /**
-         * 顶部工具条/相册条里的无文案 button 易被误判为「大缩略图」触发圈坐标校正，点到网格勾选圈。
-         * 该区域内的 button→link 配对也与「整格缩略图+圈」不同，一律不做剪映网格类重定向。
-         */
-        /** 含状态栏+相册来源条+视频/照片 Tab；略放大避免 y≈600 的工具钮仍被当成缩略图做圈校正 */
-        private const val CAPCUT_TOP_CHROME_FRACTION = 0.24f
     }
 
     private val refMap = mutableMapOf<String, RefNode>()
-    /** Same order as snapshot / e1,e2,… — used for 剪映 button→link pairing. */
     private var snapshotNodesInOrder: List<RefNode> = emptyList()
     private var lastSnapshotTime = 0L
     private var snapshotSeq = 0L
@@ -97,10 +89,6 @@ class RefManager {
      * Adaptive tap coordinate for list-like settings pages:
      * if target ref is a wide row container, prefer a right-side switch node
      * in the same row to avoid entering detail page by mistake.
-     *
-     * CapCut (剪映): (1) 「一键成片」— prefer the labeled text hit target over blank row buttons;
-     * (2) media grid — large thumbnail/link taps are redirected to a small control in the top-right
-     * zone of that thumb (checkbox), avoiding preview-open taps.
      */
     fun resolveRefForTap(ref: String, screenWidth: Int, screenHeight: Int): Pair<Int, Int>? {
         lastTapAdjustTag = null
@@ -108,26 +96,11 @@ class RefManager {
         val rowCenter = Pair(node.bounds.centerX(), node.bounds.centerY())
         val h = screenHeight.coerceAtLeast(1)
 
-        capcutOneTapEntryPreference(ref, screenWidth)?.let { return it }
-        if (!isCapCutTopChromeGridExemptZone(node, h)) {
-            capcutPairedLinkAfterThumbnailButton(ref)?.let {
-                lastTapAdjustTag = "capcut_pair"
-                return it
-            }
-            capcutRedirectThumbToCornerCheckbox(ref, h)?.let {
-                lastTapAdjustTag = "capcut_corner"
-                return it
-            }
-        }
-
         val nodeWidth = node.bounds.width()
         val isWideRow = nodeWidth >= (screenWidth * 0.60).toInt()
         val noExplicitLabel = node.text.isNullOrBlank()
         if (!isWideRow) return rowCenter
         if (!noExplicitLabel) return rowCenter
-
-        // CapCut large media tiles are wide and unlabeled — do not hijack them to an unrelated switch.
-        if (isCapCutLargeMediaThumb(node)) return rowCenter
 
         val nodeCenterY = node.bounds.centerY()
         val nodeHeight = node.bounds.height().coerceAtLeast(1)
@@ -165,161 +138,10 @@ class RefManager {
         return rowCenter
     }
 
-    /** 剪映选素材页顶部条（相册来源、Tab）：不做缩略图→勾选圈类重定向。 */
-    private fun isCapCutTopChromeGridExemptZone(node: RefNode, screenHeight: Int): Boolean {
-        if (node.packageName != CAPCUT_PKG) return false
-        val cy = node.bounds.centerY()
-        return cy < screenHeight * CAPCUT_TOP_CHROME_FRACTION
-    }
-
-    /**
-     * 剪映选图：遍历顺序里常为「无文案 button」+「link」同格成对；点 button 时直接改点到紧随的 link（圈），
-     * 比纯几何角区更稳，且明确对应「第几格」。
-     */
-    private fun capcutPairedLinkAfterThumbnailButton(ref: String): Pair<Int, Int>? {
-        val idx = snapshotNodesInOrder.indexOfFirst { it.ref == ref }
-        if (idx < 0 || idx >= snapshotNodesInOrder.lastIndex) return null
-        val cur = snapshotNodesInOrder[idx]
-        val next = snapshotNodesInOrder[idx + 1]
-        if (cur.packageName != CAPCUT_PKG) return null
-        if (cur.role != "button" || !cur.clickable || !cur.text.isNullOrBlank()) return null
-        if (next.role != "link" || !next.clickable) return null
-        val maxH = max(cur.bounds.height(), next.bounds.height()).coerceAtLeast(1)
-        if (abs(cur.bounds.centerY() - next.bounds.centerY()) > maxH + 48) return null
-        Log.d(TAG, "CapCut paired: button $ref -> link ${next.ref}")
-        return Pair(next.bounds.centerX(), next.bounds.centerY())
-    }
-
-    /** True for CapCut picker cells: big tile (opens preview) — image, wide link, or blank large button. */
-    private fun isCapCutLargeMediaThumb(node: RefNode): Boolean {
-        if (node.packageName != CAPCUT_PKG || !node.clickable) return false
-        val area = node.bounds.width() * node.bounds.height()
-        return when (node.role) {
-            "image" -> area >= 8_000
-            "link" -> node.bounds.width() >= 100 && area >= 6_000
-            // Current 剪映: full thumbnail is often a large faceless `button`; small circle is `link`.
-            "button" -> node.text.isNullOrBlank() && area >= 8_000
-            else -> false
-        }
-    }
-
-    /**
-     * Home / discovery: hit 「一键成片」 reliably by using the text node's center or the smallest
-     * clickable that contains that point (not a huge anonymous button beside it).
-     */
-    private fun capcutOneTapEntryPreference(ref: String, screenWidth: Int): Pair<Int, Int>? {
-        val node = refMap[ref] ?: return null
-        val label = refMap.values.find {
-            it.packageName == CAPCUT_PKG && it.text?.contains("一键成片") == true
-        } ?: return null
-        if (node.packageName != CAPCUT_PKG) return null
-
-        val lx = label.bounds.centerX()
-        val ly = label.bounds.centerY()
-
-        fun smallestClickableContaining(x: Int, y: Int): RefNode? =
-            refMap.values
-                .filter { it.clickable && it.bounds.contains(x, y) }
-                .minByOrNull { it.bounds.width() * it.bounds.height() }
-
-        if (node.ref == label.ref) {
-            if (label.clickable) return Pair(label.bounds.centerX(), label.bounds.centerY())
-            return smallestClickableContaining(lx, ly)?.let { Pair(it.bounds.centerX(), it.bounds.centerY()) }
-                ?: Pair(lx, ly)
-        }
-
-        val vSlop = (max(node.bounds.height(), label.bounds.height()) * 0.75).toInt().coerceIn(36, 140)
-        val sameRow = abs(node.bounds.centerY() - ly) <= vSlop
-        val bulky = node.bounds.width() >= screenWidth / 4 && node.bounds.height() >= 44
-        if (node.packageName == CAPCUT_PKG && sameRow && bulky && node.text.isNullOrBlank()) {
-            if (label.clickable) return Pair(label.bounds.centerX(), label.bounds.centerY())
-            return smallestClickableContaining(lx, ly)?.let { Pair(it.bounds.centerX(), it.bounds.centerY()) }
-                ?: Pair(lx, ly)
-        }
-
-        return null
-    }
-
-    /**
-     * Picker: redirect tap on a large thumbnail / preview to a small clickable in the top-right
-     * band of that tile (typical multi-select checkbox).
-     */
-    private fun capcutRedirectThumbToCornerCheckbox(ref: String, screenHeight: Int): Pair<Int, Int>? {
-        val thumb = refMap[ref] ?: return null
-        if (thumb.packageName != CAPCUT_PKG || !thumb.clickable) return null
-        if (isCapCutTopChromeGridExemptZone(thumb, screenHeight)) return null
-        val area = thumb.bounds.width() * thumb.bounds.height()
-        val looksLikeThumb = when (thumb.role) {
-            "image" -> area >= 8_000
-            "link" -> thumb.bounds.width() >= 100 && area >= 6_000
-            "button" -> thumb.text.isNullOrBlank() && area >= 8_000
-            else -> false
-        }
-        if (!looksLikeThumb) return null
-
-        val pick = findCapCutCornerCheckboxNear(thumb) ?: return null
-        Log.d(TAG, "CapCut tile $ref -> selection control ${pick.ref} at (${pick.bounds.centerX()},${pick.bounds.centerY()})")
-        return Pair(pick.bounds.centerX(), pick.bounds.centerY())
-    }
-
-    private fun findCapCutCornerCheckboxNear(thumb: RefNode): RefNode? {
-        val B = thumb.bounds
-        val spanX = max(B.width() / 3, 56)
-        val spanY = max(B.height() / 3, 56)
-        val xMin = B.right - spanX - 36
-        val xMax = B.right + 48
-        val yMin = B.top - 16
-        val yMax = B.top + spanY + 16
-
-        fun distToTopRight(n: RefNode): Int {
-            val dx = n.bounds.centerX() - B.right
-            val dy = n.bounds.centerY() - B.top
-            return dx * dx + dy * dy
-        }
-
-        return refMap.values
-            .asSequence()
-            .filter { it.ref != thumb.ref }
-            .filter { it.clickable }
-            .filter { !AdUiGuard.isLikelyAdvertisement(it) }
-            .filter {
-                val cx = it.bounds.centerX()
-                val cy = it.bounds.centerY()
-                cx in xMin..xMax && cy in yMin..yMax
-            }
-            .filter {
-                val a = it.bounds.width() * it.bounds.height()
-                a in 400..55_000
-            }
-            .minWithOrNull(
-                compareBy<RefNode>(
-                    // 剪映常见：右上角圈是 `link`（选中时 link '1' + selected）；旧版可能是小 button
-                    { n ->
-                        when {
-                            n.role == "link" -> 0
-                            n.checkable || n.role == "checkbox" -> 1
-                            else -> 2
-                        }
-                    },
-                    { it.bounds.width() * it.bounds.height() },
-                    { distToTopRight(it) }
-                )
-            )
-            ?: refMap.values
-                .asSequence()
-                .filter { it.ref != thumb.ref }
-                .filter { it.clickable && !AdUiGuard.isLikelyAdvertisement(it) }
-                .filter {
-                    it.role == "link" || it.checkable || it.role == "checkbox"
-                }
-                .filter { thumb.bounds.contains(it.bounds.centerX(), it.bounds.centerY()) }
-                .minByOrNull { it.bounds.width() * it.bounds.height() }
-    }
-
     fun getRefNode(ref: String): RefNode? = refMap[ref]
 
     /**
-     * 在指定包内查找文案包含 [substring] 的节点 ref；多条时取 **最短 text**（避免长营销句抢过「一键成片」等短标签）。
+     * 在指定包内查找文案包含 [substring] 的节点 ref；多条时取 **最短 text**。
      * 最短并列时 **优先可点击**（避免落到纯 `text` 节点导致点不中 Tab）。
      */
     fun findRefForLabelTextContaining(substring: String, packageName: String): String? {
@@ -333,15 +155,6 @@ class RefManager {
             compareBy<RefNode> { if (it.clickable) 0 else 1 }
                 .thenBy { it.ref }
         )?.ref
-    }
-
-    /** 剪映素材页：同时出现「照片」「视频」标签时，视为顶部 Tab 栏（与首页区分）。 */
-    fun hasCapCutMediaPickerTabBar(): Boolean {
-        val texts = refMap.values
-            .filter { it.packageName == CAPCUT_PKG }
-            .mapNotNull { it.text?.trim() }
-            .toSet()
-        return texts.contains("照片") && texts.contains("视频")
     }
 
     /**

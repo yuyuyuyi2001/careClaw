@@ -3,23 +3,19 @@ package com.xiaomo.feishu.tools
 import com.xiaomo.feishu.FeishuClient
 import com.xiaomo.feishu.FeishuConfig
 import com.xiaomo.feishu.tools.chat.FeishuChatTools
-import com.xiaomo.feishu.tools.doc.FeishuDocTools
 import com.xiaomo.feishu.tools.media.FeishuMediaTools
-import com.xiaomo.feishu.tools.urgent.FeishuUrgentTools
 
 /**
  * 飞书工具注册中心（CareClaw 精简版）
  *
- * 只保留 chat / doc / urgent / media 四类工具；
- * 已砍掉 wiki/drive/bitable/task/perm 工具集。
+ * 只保留 chat / media 两类工具；
+ * 已砍掉 wiki/drive/bitable/task/perm/doc/urgent 工具集。
  */
 class FeishuToolRegistry(
     private val config: FeishuConfig,
     private val client: FeishuClient
 ) {
-    private val docTools = FeishuDocTools(config, client)
     private val chatTools = FeishuChatTools(config, client)
-    private val urgentTools = FeishuUrgentTools(config, client)
     private val mediaTools = FeishuMediaTools(config, client)
 
     /**
@@ -27,9 +23,7 @@ class FeishuToolRegistry(
      */
     fun getAllTools(): List<FeishuToolBase> {
         return buildList {
-            addAll(docTools.getAllTools())
             addAll(chatTools.getAllTools())
-            addAll(urgentTools.getAllTools())
             addAll(mediaTools.getAllTools())
         }
     }
@@ -75,9 +69,7 @@ class FeishuToolRegistry(
             totalTools = allTools.size,
             enabledTools = enabledTools.size,
             toolsByCategory = mapOf(
-                "doc" to docTools.getAllTools().size,
                 "chat" to chatTools.getAllTools().size,
-                "urgent" to urgentTools.getAllTools().size,
                 "media" to mediaTools.getAllTools().size
             )
         )

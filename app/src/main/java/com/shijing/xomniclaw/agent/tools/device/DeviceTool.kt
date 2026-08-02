@@ -66,9 +66,6 @@ class DeviceTool(private val context: Context) : Tool {
         private const val SCROLL_AMOUNT_MIN = 0.25
         /** Absolute floor for half-span (px) so tiny amounts still send a gesture. */
         private const val SCROLL_HALF_SPAN_MIN_PX = 10
-        /** 剪映「一键成片」相关入口（智能推荐/编辑 Tab）；版本不符时可能无效，可回退 UI 点「一键成片」。 */
-        const val CAPCUT_DEEPLINK_ONE_TAP_SMART =
-            "videocut://template/smart_recommend?enter_from=intelligent_edit&tab_name=edit"
 
         private const val DUAL_TRACK_MIN_CONFIDENCE = 0.45
         private const val RETRY_SECOND_TAP_MIN_DISTANCE_PX = 24.0
@@ -236,8 +233,7 @@ class DeviceTool(private val context: Context) : Tool {
                         "uri" to PropertySchema(
                             type = "string",
                             description = "Deep link for action=open: uses ACTION_VIEW. " +
-                                "剪映一键成片入口（示例）: uri=\"$CAPCUT_DEEPLINK_ONE_TAP_SMART\" + package_name=\"com.lemon.lv\" " +
-                                "可直达相关页，无需再点首页「一键成片」。scheme=videocut 且未写 package_name 时默认 com.lemon.lv。"
+                                "scheme=videocut 且未写 package_name 时默认 com.lemon.lv。"
                         ),
                         "url" to PropertySchema(
                             type = "string",
@@ -360,21 +356,6 @@ class DeviceTool(private val context: Context) : Tool {
             p.contains("permissioncontroller")
     }
 
-    /**
-     * 顶层为权限/安全页且树内仍含剪映等大量节点时，避免模型误点底层 ref。
-     */
-    private fun buildPermissionOverlaySnapshotHint(
-        packageHeader: String,
-        topPackages: List<Pair<String, Int>>
-    ): String? {
-        if (!isPermissionDialogPackage(packageHeader)) return null
-        val lemonCount = topPackages.find { it.first == "com.lemon.lv" }?.second ?: 0
-        if (lemonCount < 5) return null
-        return "[权限/安全顶层] 当前 **package=$packageHeader**（系统权限或安全页在上层）。树中虽混有 **剪映 com.lemon.lv** 节点，" +
-            "在弹窗未处理前 **勿点** 剪映区域的 ref（易点穿、坐标错位或与包名校验冲突）。请先点本页 **允许 / 拒绝 / 仅在使用中允许** 等带文案的按钮；" +
-            "待 snapshot 首行 **package=com.lemon.lv** 后再点「一键成片」。"
-    }
-
     // ==================== snapshot ====================
 
     private suspend fun executeSnapshot(args: Map<String, Any?>): ToolResult {
@@ -436,30 +417,7 @@ class DeviceTool(private val context: Context) : Tool {
             appendLine("]")
             appendLine("提示：[约束] 每次执行 act/open 等会改变界面的操作前，必须先 snapshot；首行 seq 仅便于日志对照，勿作为工具入参或校验依据。")
             buildOverlaySnapshotInfo(packageForHeader, topPackages)?.let { appendLine(it) }
-            buildPermissionOverlaySnapshotHint(packageForHeader, topPackages)?.let { appendLine(it) }
 
-            if (packageForHeader == "com.lemon.lv") {
-                SnapshotFormatter.capCutAlbumSourceDropdownHint(nodes)?.let { appendLine(it) }
-                SnapshotFormatter.capCutA_latestAlbumListRowHint(nodes)?.let { appendLine(it) }
-            }
-            SnapshotFormatter.mediaPickerBannerIfNeeded(nodes, height)?.let { appendLine(it) }
-            if (packageForHeader == "com.lemon.lv") {
-                SnapshotFormatter.capCutVideoTabSelectedPhotoReminder(nodes, height)?.let { appendLine(it) }
-                SnapshotFormatter.capCutThreePlusSuggestionReminder(nodes)?.let { appendLine(it) }
-                SnapshotFormatter.capCutGridPairingHint(nodes)?.let { appendLine(it) }
-                SnapshotFormatter.capCutGridOrderedLinkRefsLine(nodes)?.let { appendLine(it) }
-            }
-            if (packageForHeader == "com.lemon.lv" && body.contains("一键成片")) {
-                refManager.findRefForLabelTextContaining("一键成片", "com.lemon.lv")?.let { r ->
-                    appendLine(
-                        "[剪映首页·一键成片] **请对该入口使用 ref=$r**（与树内 **`text '一键成片' [ref=$r]`** 一致）。**禁止**凭感觉改用列表中下区其它功能的 ref（例如 **e49 可能是「AI 图片编辑」**，与一键成片无关）。"
-                    )
-                }
-                appendLine(
-                    "提示（剪映）：进入「一键成片」请优先使用带「一键成片」字样的 ref；若点到旁边大块空白 button，引擎会改点到文案命中区。" +
-                        "相册多选：大块无文案 button 多为缩略图（易进预览）；勾选圈多为 link（可 selected）。误点大图时引擎会尽量改点到同格右上角圈。"
-                )
-            }
             append(body)
         }
 
@@ -612,52 +570,6 @@ class DeviceTool(private val context: Context) : Tool {
     }
 
     /**
-     * 剪映首页：VLM 双轨点「一键成片」常命中状态栏/营销区（如 y≈300），误进 AI 创作。
-     * 若当前 snapshot 里已有「一键成片」文案节点，则注入其 ref，强制走无障碍 ref 路径（跳过双轨优先）。
-     */
-    private fun injectCapCutYijianchengpianRefIfNeeded(
-        args: Map<String, Any?>,
-        semanticTarget: String
-    ): Pair<Map<String, Any?>, Boolean> {
-        val refExisting = sanitizeRefOrSnapshotToken(args["ref"] as? String)
-        if (refExisting.isNotEmpty()) return args to false
-        if (refManager.getSnapshotPackage() != "com.lemon.lv") return args to false
-        if (!semanticTarget.contains("一键成片")) return args to false
-        val r = refManager.findRefForLabelTextContaining("一键成片", "com.lemon.lv") ?: return args to false
-        val m = LinkedHashMap<String, Any?>().apply {
-            putAll(args)
-            put("ref", r)
-        }
-        return m to true
-    }
-
-    /**
-     * 剪映相册选图页：双轨点「照片」常看似成功但 **Tab 仍为视频**，随后会误选带「分:秒」的视频格。
-     * 当树里已有顶部 Tab（照片+视频）且 target 为精确「照片/视频/实况」时，注入对应可点击 ref。
-     */
-    private fun injectCapCutMediaPickerTabRefIfNeeded(
-        args: Map<String, Any?>,
-        semanticTarget: String
-    ): Pair<Map<String, Any?>, Boolean> {
-        val refExisting = sanitizeRefOrSnapshotToken(args["ref"] as? String)
-        if (refExisting.isNotEmpty()) return args to false
-        if (refManager.getSnapshotPackage() != "com.lemon.lv") return args to false
-        if (!refManager.hasCapCutMediaPickerTabBar()) return args to false
-        val tabLabel = when (semanticTarget.trim()) {
-            "照片" -> "照片"
-            "视频" -> "视频"
-            "实况" -> "实况"
-            else -> return args to false
-        }
-        val r = refManager.findRefForLabelTextContaining(tabLabel, "com.lemon.lv") ?: return args to false
-        val m = LinkedHashMap<String, Any?>().apply {
-            putAll(args)
-            put("ref", r)
-        }
-        return m to true
-    }
-
-    /**
      * 飞书聊天页常见问题：模型能看到输入框但容易点错右下角图标（如加号/语音）导致内容丢失。
      * 当目标语义是“发送”且当前为飞书包时，强制注入最可信发送按钮 ref，优先树内点击而非盲点坐标。
      */
@@ -683,10 +595,7 @@ class DeviceTool(private val context: Context) : Tool {
     private suspend fun executeTap(args: Map<String, Any?>): ToolResult {
         val useDualTrack = (args["use_dual_track"] as? Boolean) == true
         val semanticTarget = deriveTapSemanticTarget(args)
-        val (tapAfterFeishuSend, feishuSendRefForced) = injectFeishuSendRefIfNeeded(args, semanticTarget)
-        val (tapAfterYijian, capcutYijianRefForced) = injectCapCutYijianchengpianRefIfNeeded(tapAfterFeishuSend, semanticTarget)
-        val (tapArgs, capcutPickerTabRefForced) = injectCapCutMediaPickerTabRefIfNeeded(tapAfterYijian, semanticTarget)
-        val capcutTreeRefForced = capcutYijianRefForced || capcutPickerTabRefForced
+        val (tapArgs, feishuSendRefForced) = injectFeishuSendRefIfNeeded(args, semanticTarget)
         val hasExplicitPointer = hasExplicitTapPointer(tapArgs)
         val beforeTapNodes = safeDumpViewTreeForRetry()
         val adLikelyOnScreen = looksLikeAdvertisementScreen(beforeTapNodes)
@@ -731,8 +640,8 @@ class DeviceTool(private val context: Context) : Tool {
                         )
                     }
                 }
-                // 已为剪映注入树内 ref（一键成片 / 相册 Tab）时，禁止再双轨兜底
-                if (semanticTarget.isNotBlank() && dualDecision == null && !capcutTreeRefForced) {
+                // 已注入语义树 ref 时，禁止再双轨兜底
+                if (semanticTarget.isNotBlank() && dualDecision == null) {
                     dualDecision = dualTrackEngine.resolveTapTarget(
                         target = semanticTarget,
                         preferVisual = true
@@ -747,13 +656,7 @@ class DeviceTool(private val context: Context) : Tool {
                         return ToolResult.error("${resolved.error}；双轨兜底未命中，请补充 target 或重新 snapshot。")
                     }
                 } else {
-                    return ToolResult.error(
-                        if (capcutTreeRefForced) {
-                            "${resolved.error}（已使用剪映树内 ref 优先路径，请勿依赖双轨；请先重新 snapshot 再 act。）"
-                        } else {
-                            resolved.error
-                        }
-                    )
+                    return ToolResult.error(resolved.error)
                 }
             } else {
                 base = resolved.coordinate
@@ -790,12 +693,6 @@ class DeviceTool(private val context: Context) : Tool {
                     " [warn low-confidence-allowed threshold=${"%.2f".format(DUAL_TRACK_MIN_CONFIDENCE)}]"
                 }.orEmpty()
                 val metadata = mutableMapOf<String, Any?>()
-                if (capcutYijianRefForced) {
-                    metadata["capcut_yijianchengpian_ref_forced"] = true
-                }
-                if (capcutPickerTabRefForced) {
-                    metadata["capcut_picker_tab_ref_forced"] = true
-                }
                 if (feishuSendRefForced) {
                     metadata["feishu_send_ref_forced"] = true
                     // 供上层循环做“发送后验收”约束，避免只点了发送就当完成。
@@ -884,8 +781,6 @@ class DeviceTool(private val context: Context) : Tool {
                     append(" at (").append(x).append(", ").append(y).append(")")
                     if (adaptiveRedirected) {
                         when (tapAdjustTag) {
-                            "capcut_pair" -> append(" [capcut→同格link勾选]")
-                            "capcut_corner" -> append(" [capcut→圈坐标校正]")
                             "settings_switch" -> append(" [adaptive-switch-target]")
                             else -> append(" [tap坐标已校正]")
                         }
@@ -896,10 +791,6 @@ class DeviceTool(private val context: Context) : Tool {
                     when {
                         feishuSendRefForced ->
                             append(" [飞书：已强制发送按钮 ref，避免误点右下角非发送图标；请立即观察确认消息已发出]")
-                        capcutYijianRefForced ->
-                            append(" [剪映：树内「一键成片」ref 优先，未用双轨盲点]")
-                        capcutPickerTabRefForced ->
-                            append(" [剪映：相册顶部「${semanticTarget.trim()}」Tab 已用语义树 ref，未用双轨]")
                     }
                 }
                 ToolResult.success(resultText, metadata)
