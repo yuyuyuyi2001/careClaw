@@ -138,7 +138,7 @@ class NavigationSkill(private val context: Context) : Skill {
         val packageName = context.packageName
         val className = when (page) {
             Pages.MAIN -> "$packageName.ui.activity.MainActivityCompose"
-            Pages.CONFIG -> "$packageName.ui.activity.ConfigActivity"
+            Pages.CONFIG -> "$packageName.ui.activity.ModelConfigActivity"
             Pages.PERMISSIONS -> "$packageName.ui.activity.PermissionsActivity"
             Pages.SKILLS -> "$packageName.ui.activity.SkillsActivity"
             else -> return null

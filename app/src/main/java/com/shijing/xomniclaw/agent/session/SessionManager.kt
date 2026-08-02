@@ -9,7 +9,6 @@ package com.shijing.xomniclaw.agent.session
 
 
 import android.util.Log
-import com.shijing.xomniclaw.agent.memory.ContextCompressor
 import com.shijing.xomniclaw.agent.memory.TokenEstimator
 import com.shijing.xomniclaw.providers.LegacyMessage
 import com.shijing.xomniclaw.providers.LegacyToolCall
@@ -47,8 +46,7 @@ import kotlin.concurrent.write
  * 5. Provide session create, get, save, clear functions
  */
 class SessionManager(
-    private val workspace: File,
-    private val contextCompressor: ContextCompressor? = null
+    private val workspace: File
 ) {
     companion object {
         private const val TAG = "SessionManager"
@@ -182,45 +180,6 @@ class SessionManager(
         loadIndex()
         // Only return sessions from index (new format), ignore old .json files
         return sessionIndex.keys.toList()
-    }
-
-    /**
-     * Check and auto compress session
-     *
-     * @param session Session
-     * @return Whether compression was performed
-     */
-    suspend fun compressIfNeeded(session: Session): Boolean = withContext(Dispatchers.IO) {
-        if (contextCompressor == null) {
-            return@withContext false
-        }
-
-        try {
-            // Check if compaction is needed
-            if (!contextCompressor.needsCompaction(session.messages)) {
-                return@withContext false
-            }
-
-            Log.d(TAG, "Auto-compressing session: ${session.key} (${session.messages.size} messages, ${session.getTokenCount()} tokens)")
-
-            // Perform compression
-            val compressedMessages = contextCompressor.compress(session.messages)
-
-            // Update session
-            session.messages.clear()
-            session.messages.addAll(compressedMessages)
-            session.markCompacted()
-
-            // Save session
-            save(session)
-
-            Log.d(TAG, "Session compressed: ${session.key} → ${session.messages.size} messages, ${session.getTokenCount()} tokens (compaction #${session.compactionCount})")
-
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to compress session: ${session.key}", e)
-            false
-        }
     }
 
     /**

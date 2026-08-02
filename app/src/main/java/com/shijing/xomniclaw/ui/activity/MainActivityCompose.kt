@@ -260,6 +260,23 @@ class MainActivityCompose : ComponentActivity() {
     private var chatBroadcastReceiver: ChatBroadcastReceiver? = null
     private var chatViewModel: ChatViewModel? = null
 
+    /** 首次启动判定：xomniclaw.json 存在且至少一个 Provider 配置了真实 API Key。 */
+    private fun isModelConfigured(): Boolean {
+        return try {
+            val configFile = java.io.File("/sdcard/.xomniclaw/xomniclaw.json")
+            if (!configFile.exists() || configFile.length() == 0L) return false
+            val config = ConfigLoader(this).loadOmniClawConfig()
+            val providers = config.resolveProviders()
+            providers.values.any { provider ->
+                val key = provider.apiKey
+                !key.isNullOrBlank() && !key.startsWith("\${") && key != "未配置"
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error checking model config, assuming not configured", e)
+            false
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -272,10 +289,10 @@ class MainActivityCompose : ComponentActivity() {
             Log.i(TAG, "Auto-enable accessibility: success=${result.success}, method=${result.method}, msg=${result.message}")
         }
 
-        // Check if model setup is needed (first run, no API key configured)
-        if (ModelSetupActivity.isNeeded(this)) {
+        // Check if model setup is needed (first run, no API key configured) → 直接打开模型配置页
+        if (!isModelConfigured()) {
             Log.i(TAG, "🔧 首次启动，打开模型配置引导...")
-            startActivity(Intent(this, ModelSetupActivity::class.java))
+            startActivity(Intent(this, ModelConfigActivity::class.java))
         }
 
         setContent {
@@ -298,7 +315,7 @@ class MainActivityCompose : ComponentActivity() {
                             startActivity(Intent(this, ModelConfigActivity::class.java))
                             Log.d("MainActivityCompose", "Successfully started ModelConfigActivity")
                         } catch (e: Exception) {
-                            Log.e("MainActivityCompose", "Failed to start ConfigActivity", e)
+                            Log.e("MainActivityCompose", "Failed to start ModelConfigActivity", e)
                         }
                     }
                 )

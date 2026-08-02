@@ -93,23 +93,9 @@
             </intent-filter>
         </activity>
 
-        <!-- 模型配置引导页（首次启动） -->
-        <activity
-            android:name="com.shijing.xomniclaw.ui.activity.ModelSetupActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
-
-        <!-- 模型配置页面（两页式） -->
+        <!-- 模型配置页面（Provider 选择 + API Key/Base URL + 模型选择） -->
         <activity
             android:name="com.shijing.xomniclaw.ui.activity.ModelConfigActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
-
-        <!-- 配置页面 -->
-        <activity
-            android:name="com.shijing.xomniclaw.ui.activity.ConfigActivity"
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
