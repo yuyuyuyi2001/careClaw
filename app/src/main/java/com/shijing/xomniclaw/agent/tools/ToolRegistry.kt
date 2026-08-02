@@ -13,7 +13,7 @@ import android.content.Context
 import android.util.Log
 import com.shijing.xomniclaw.data.model.TaskDataManager
 import com.shijing.xomniclaw.providers.ToolDefinition
-import com.shijing.xomniclaw.gateway.methods.ConfigMethods
+import com.shijing.xomniclaw.config.ConfigMethods
 import java.io.File
 
 /**

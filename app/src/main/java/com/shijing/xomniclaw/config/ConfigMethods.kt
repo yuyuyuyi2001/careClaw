@@ -4,7 +4,7 @@
  *
  * OmniClaw adaptation: gateway server and RPC methods.
  */
-package com.shijing.xomniclaw.gateway.methods
+package com.shijing.xomniclaw.config
 
 import android.content.Context
 import com.shijing.xomniclaw.config.ConfigLoader

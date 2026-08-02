@@ -148,16 +148,6 @@ object AccessibilityProxy {
      * root 路径不依赖 service，所以放在 ensureConnected 之前先尝试，可以更快失败回落。
      */
     suspend fun captureScreen(): String = withContext(Dispatchers.IO) {
-        // 1) Root 路径：最高优先级、不依赖任何 Android 组件状态。
-        val rootResult = try {
-            RootScreencap.capture()
-        } catch (e: Exception) {
-            Log.w(TAG, "Root screencap threw, fallback to a11y", e)
-            null
-        }
-        if (rootResult != null) {
-            return@withContext rootResult.second
-        }
 
         // 2) 走 a11y 之前必须保证服务已连接。
         ensureConnectedWithRetry()

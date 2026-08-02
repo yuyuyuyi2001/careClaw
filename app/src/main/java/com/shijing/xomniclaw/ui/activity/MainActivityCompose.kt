@@ -42,9 +42,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.shijing.xomniclaw.ui.compose.CameraPreviewOverlay
 import com.shijing.xomniclaw.ui.compose.ChatScreen
-import com.shijing.xomniclaw.ui.compose.VisionFrameSource
 import com.shijing.xomniclaw.ui.viewmodel.ChatViewModel
 import com.shijing.xomniclaw.voice.VoiceRecorderManager
 import com.shijing.xomniclaw.voice.VoiceRecorderManager.VoiceProcessingStage
@@ -60,14 +58,10 @@ import com.tencent.mmkv.MMKV
 import com.shijing.xomniclaw.util.MMKVKeys
 import com.shijing.xomniclaw.R
 import com.shijing.xomniclaw.BuildConfig
-import com.shijing.xomniclaw.deeplink.RootShellExecutor
-import com.shijing.xomniclaw.deeplink.ui.DeeplinkBookmarksTab
 import androidx.lifecycle.lifecycleScope
 import com.shijing.xomniclaw.agent.memory.MemoryManager
-import com.shijing.xomniclaw.agent.memory.evolution.MemoryEvolutionAutomationManager
 import com.shijing.xomniclaw.agent.memory.evolution.MemoryEvolutionStatus
 import com.shijing.xomniclaw.agent.memory.evolution.MemoryEvolutionStatusStore
-import com.shijing.xomniclaw.agent.memory.gallery.GalleryMemoryAutomationManager
 import com.shijing.xomniclaw.agent.memory.gallery.GalleryMemorySettings
 import com.shijing.xomniclaw.agent.memory.gallery.GalleryMemorySettingsStore
 import com.shijing.xomniclaw.agent.memory.gallery.GalleryMemorySyncForegroundService
@@ -76,13 +70,8 @@ import com.shijing.xomniclaw.agent.memory.gallery.GalleryMemorySyncStatusStore
 import com.shijing.xomniclaw.agent.memory.gallery.GalleryMemoryWorkflow
 import com.shijing.xomniclaw.agent.tools.device.DeviceToolSettings
 import com.shijing.xomniclaw.agent.tools.device.DeviceToolSettingsStore
-import com.shijing.xomniclaw.agent.tools.device.DeviceYoloThresholdConfig
-import com.shijing.xomniclaw.agent.tools.device.yolo.UiDetectionOcrEngine
 import com.shijing.xomniclaw.config.ConfigLoader
 import com.shijing.xomniclaw.core.MainEntryNew
-import com.shijing.xomniclaw.scheduler.ScheduledTask
-import com.shijing.xomniclaw.scheduler.ScheduledTaskEditDraft
-import com.shijing.xomniclaw.scheduler.ScheduledTaskManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -332,48 +321,6 @@ class MainActivityCompose : ComponentActivity() {
      * Check GitHub Releases for updates in background.
      * Only shows dialog if a new version is available.
      */
-    fun silentUpdateCheck() {
-        lifecycleScope.launch {
-            try {
-                val updater = com.shijing.xomniclaw.updater.AppUpdater(this@MainActivityCompose)
-                val info = updater.checkForUpdate()
-                if (info.hasUpdate && info.downloadUrl != null) {
-                    // Show update dialog on main thread
-                    val sizeStr = if (info.fileSize > 0) "%.1f MB".format(info.fileSize / 1024.0 / 1024.0) else ""
-                    val message = buildString {
-                        append("发现新版本 v${info.latestVersion}\n")
-                        append("当前版本 v${info.currentVersion}\n")
-                        if (sizeStr.isNotEmpty()) append("大小: $sizeStr\n")
-                        if (!info.releaseNotes.isNullOrEmpty()) {
-                            append("\n${info.releaseNotes.take(200)}")
-                        }
-                    }
-
-                    androidx.appcompat.app.AlertDialog.Builder(this@MainActivityCompose)
-                        .setTitle("发现新版本")
-                        .setMessage(message)
-                        .setPositiveButton("立即更新") { _, _ ->
-                            lifecycleScope.launch {
-                                val success = updater.downloadAndInstall(info.downloadUrl, info.latestVersion)
-                                if (!success) {
-                                    try {
-                                        startActivity(android.content.Intent(
-                                            android.content.Intent.ACTION_VIEW,
-                                            android.net.Uri.parse(info.releaseUrl)
-                                        ))
-                                    } catch (_: Exception) {}
-                                }
-                            }
-                        }
-                        .setNegativeButton("稍后再说", null)
-                        .show()
-                }
-            } catch (_: Exception) {
-                // Silent — don't interrupt user
-            }
-        }
-    }
-
     override fun onPause() {
         super.onPause()
         // Notify float window manager when main activity is not visible
@@ -381,7 +328,6 @@ class MainActivityCompose : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        UiDetectionOcrEngine.close()
         super.onDestroy()
         unregisterChatBroadcastReceiver()
     }
@@ -497,15 +443,6 @@ fun MainScreen(
             Toast.makeText(context, "相册权限已授权", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(context, "相册权限未完全授权，请在权限页手动开启", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        val hasShown = mmkv.decodeBool(MMKVKeys.FIRST_LAUNCH_PERMISSION_ALERT_SHOWN.key, false)
-        if (!hasShown) {
-            // 首次启动强提醒：权限入口 + 相册权限显眼提示
-            showFirstLaunchPermissionAlert = true
-            mmkv.encode(MMKVKeys.FIRST_LAUNCH_PERMISSION_ALERT_SHOWN.key, true)
         }
     }
 
@@ -650,16 +587,7 @@ fun MainScreen(
             voiceManager.destroy()
         }
     }
-    val rootAvailable by produceState(initialValue = false) {
-        value = withContext(Dispatchers.IO) {
-            RootShellExecutor.hasRootAccess(forceRefresh = true)
-        }
-    }
-    val availableTabs = remember(rootAvailable) {
-        MainTab.values().filter { tab ->
-            tab != MainTab.DEEPLINK || rootAvailable
-        }
-    }
+    val availableTabs = MainTab.values().toList()
 
     LaunchedEffect(availableTabs) {
         if (selectedTab !in availableTabs) {
@@ -738,7 +666,6 @@ fun MainScreen(
                     currentSessionId = currentSession.id
                 )
                 MainTab.SETTINGS -> SettingsTab(onNavigateToConfig)
-                MainTab.DEEPLINK -> DeeplinkBookmarksTab()
             }
         }
     }
@@ -748,7 +675,6 @@ enum class MainTab(val title: String, val icon: ImageVector) {
     CHAT("对话", Icons.Default.Chat),
     STATUS("状态", Icons.Default.Dashboard),
     SETTINGS("设置", Icons.Default.Settings),
-    DEEPLINK("收藏", Icons.Default.Bookmarks)
 }
 
 @Composable
@@ -770,8 +696,6 @@ fun ChatTab(
     var currentModelInfo by remember { mutableStateOf("当前模型：读取中...") }
     val sessions by chatViewModel.sessions.collectAsState()
     val currentSession by chatViewModel.currentSession.collectAsState()
-    val companionUiState by com.shijing.xomniclaw.voice.ScreenCompanionController.uiState.collectAsState()
-    val behaviorRecordingState by com.shijing.xomniclaw.behavior.BehaviorRecordingController.uiState.collectAsState()
     val application = context.applicationContext as? android.app.Application
 
     suspend fun refreshChatPermissionStatus() {
@@ -862,98 +786,12 @@ fun ChatTab(
         }
     }
 
-    // ===== 摄像头 / 屏幕 推流 =====
-    var showCameraPreview by remember { mutableStateOf(false) }
-    var visionFrameSource by remember { mutableStateOf(VisionFrameSource.CAMERA_BACK) }
-    var showVisionSourcePicker by remember { mutableStateOf(false) }
-    var currentVisionConfig by remember {
-        mutableStateOf(com.shijing.xomniclaw.config.VisionConfig())
-    }
 
-    val framePusher = remember { com.shijing.xomniclaw.vision.CameraFramePusher(context) }
-    val screenSampler = remember { com.shijing.xomniclaw.vision.ScreenFrameSampler() }
 
-    // 从配置读取 vision（帧率画质等；STT/VLM 由 MainScreen 注入的 voiceManager 在顶层加载）
-    LaunchedEffect(Unit) {
-        try {
-            val configLoader = com.shijing.xomniclaw.config.ConfigLoader(context)
-            val config = configLoader.loadOmniClawConfig()
-            val vision = config.vision ?: com.shijing.xomniclaw.config.VisionConfig()
-            currentVisionConfig = vision
-            framePusher.fps = vision.fps
-            framePusher.jpegQuality = vision.quality
-            screenSampler.fps = vision.fps
-            screenSampler.jpegQuality = vision.quality
-        } catch (_: Exception) {}
-    }
 
-    val projectionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        CrashBreadcrumbs.mark(
-            stage = "ui.projection.result_callback",
-            detail = "resultCode=${result.resultCode}, hasData=${result.data != null}"
-        )
-        MediaProjectionHelper.applyScreenCaptureResult(context, result.resultCode, result.data)
-        if (MediaProjectionHelper.isMediaProjectionGranted()) {
-            val app = application
-            if (app != null) {
-                CrashBreadcrumbs.mark(
-                    stage = "ui.projection.result_callback",
-                    detail = "projection_granted_enter_companion, sessionId=${currentSession.id}"
-                )
-                val entered = com.shijing.xomniclaw.voice.ScreenCompanionController.enterCompanionMode(
-                    application = app,
-                    sessionId = currentSession.id,
-                    visionConfig = currentVisionConfig
-                )
-                val message = if (entered) "已进入屏内替身模式" else "进入替身模式失败"
-                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(context, "应用上下文异常，无法进入替身模式", Toast.LENGTH_SHORT).show()
-            }
-        } else {
-            Toast.makeText(context, "需要录屏权限以采集屏幕画面", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    LaunchedEffect(currentSession.id, companionUiState.isActive) {
-        if (companionUiState.isActive) {
-            com.shijing.xomniclaw.voice.ScreenCompanionController.updateSessionId(currentSession.id)
-        }
-    }
-
-    // 摄像头权限请求
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            showCameraPreview = true
-        } else {
-            Toast.makeText(context, "需要摄像头权限", Toast.LENGTH_SHORT).show()
-        }
-    }
-    // 统一摄像头入口，具体前后切换交给预览层中的翻转按钮。
-    val openCameraPreview = {
-        showVisionSourcePicker = false
-        if (
-            visionFrameSource != VisionFrameSource.CAMERA_BACK &&
-            visionFrameSource != VisionFrameSource.CAMERA_FRONT
-        ) {
-            visionFrameSource = VisionFrameSource.CAMERA_BACK
-        }
-        val hasCameraPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-            PackageManager.PERMISSION_GRANTED
-        if (hasCameraPermission) {
-            showCameraPreview = true
-        } else {
-            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-        }
-    }
     val isVoiceListening by voiceManager.isListening.collectAsState()
     val isVoiceProcessing by voiceManager.isProcessing.collectAsState()
     // 录音开始时读取「是否在全屏视觉叠加层」，避免重组导致按键瞬间状态错位。
-    val updatedShowCameraPreview = rememberUpdatedState(showCameraPreview)
 
     // 录音权限请求
     val audioPermissionLauncher = rememberLauncherForActivityResult(
@@ -964,19 +802,19 @@ fun ChatTab(
                 tts.stop()
             } catch (_: Exception) {}
             // 首次授权后多从主界面入口开始录音，按非叠加层处理；叠加层用户会先关授权弹窗再按键。
-            VoiceRoundDisclosureHint.visionOverlayActiveForNextRecording = updatedShowCameraPreview.value
+            VoiceRoundDisclosureHint.visionOverlayActiveForNextRecording = false
             voiceManager.startListening()
         } else {
             android.widget.Toast.makeText(context, "需要录音权限", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
     // 必须稳定引用：否则 pointerInput 会因 key 变化在重组时取消，导致「松手不 stop」、录音一直开着。
-    val onVoicePressStart = remember(voiceManager, context, audioPermissionLauncher, tts, updatedShowCameraPreview) {
+    val onVoicePressStart = remember(voiceManager, context, audioPermissionLauncher, tts) {
         {
             try {
                 tts.stop()
             } catch (_: Exception) {}
-            VoiceRoundDisclosureHint.visionOverlayActiveForNextRecording = updatedShowCameraPreview.value
+            VoiceRoundDisclosureHint.visionOverlayActiveForNextRecording = false
             val hasPerm = ContextCompat.checkSelfPermission(
                 context,
                 Manifest.permission.RECORD_AUDIO
@@ -990,73 +828,6 @@ fun ChatTab(
     }
     val onVoicePressEnd = remember(voiceManager) {
         { voiceManager.stopListening() }
-    }
-
-    // 仅释放摄像头/截屏流；语音由 MainScreen 在离开主界面时统一 destroy
-    DisposableEffect(Unit) {
-        onDispose {
-            framePusher.stop()
-            screenSampler.stop()
-        }
-    }
-
-    if (showVisionSourcePicker) {
-        AlertDialog(
-            onDismissRequest = { showVisionSourcePicker = false },
-            title = { Text("选择视觉输入") },
-            text = {
-                Column {
-                    TextButton(onClick = {
-                        openCameraPreview()
-                    }) { Text("摄像头") }
-                    TextButton(onClick = {
-                        showVisionSourcePicker = false
-                        if (MediaProjectionHelper.isMediaProjectionGranted()) {
-                            val app = application
-                            if (app != null) {
-                                CrashBreadcrumbs.mark(
-                                    stage = "ui.companion.enter_direct",
-                                    detail = "projection_already_granted, sessionId=${currentSession.id}"
-                                )
-                                val entered = com.shijing.xomniclaw.voice.ScreenCompanionController.enterCompanionMode(
-                                    application = app,
-                                    sessionId = currentSession.id,
-                                    visionConfig = currentVisionConfig
-                                )
-                                val message = if (entered) "已进入屏内替身模式" else "进入替身模式失败"
-                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(context, "应用上下文异常，无法进入替身模式", Toast.LENGTH_SHORT).show()
-                            }
-                        } else {
-                            CrashBreadcrumbs.mark(
-                                stage = "ui.companion.request_projection",
-                                detail = "sessionId=${currentSession.id}, visionFps=${currentVisionConfig.fps}"
-                            )
-                            MediaProjectionHelper.startForegroundForMediaProjection(context)
-                            projectionLauncher.launch(MediaProjectionHelper.createScreenCaptureIntent(context))
-                        }
-                    }) { Text("屏幕画面（截屏流）") }
-                    TextButton(onClick = {
-                        showVisionSourcePicker = false
-                        val app = application
-                        val serviceReady = com.shijing.xomniclaw.accessibility.service.AccessibilityBinderService.serviceInstance != null
-                        if (app == null) {
-                            Toast.makeText(context, "应用上下文异常，无法开始轨迹录制", Toast.LENGTH_SHORT).show()
-                        } else if (!serviceReady) {
-                            Toast.makeText(context, "需要先启用无障碍服务", Toast.LENGTH_SHORT).show()
-                        } else {
-                            val started = com.shijing.xomniclaw.behavior.BehaviorRecordingController.start(app)
-                            val message = if (started) "已开始轨迹录制" else "开始轨迹录制失败"
-                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                        }
-                    }) { Text("轨迹录制（支持 Deeplink 收藏）") }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showVisionSourcePicker = false }) { Text("取消") }
-            }
-        )
     }
 
     ChatScreen(
@@ -1087,59 +858,10 @@ fun ChatTab(
         onDeleteSession = { sessionId ->
             chatViewModel.deleteSession(sessionId)
         },
-        onCheckUpdate = {
-            val activity = context as? MainActivityCompose
-            activity?.let {
-                android.widget.Toast.makeText(it, "正在检查更新...", android.widget.Toast.LENGTH_SHORT).show()
-                it.lifecycleScope.launch {
-                    try {
-                        val updater = com.shijing.xomniclaw.updater.AppUpdater(it)
-                        val info = updater.checkForUpdate()
-                        if (info.hasUpdate) {
-                            it.silentUpdateCheck()
-                        } else {
-                            android.widget.Toast.makeText(it, "已是最新版本 v${info.currentVersion}", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    } catch (e: Exception) {
-                        android.widget.Toast.makeText(it, "检查更新失败", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-        },
-        onCameraToggle = {
-            if (showCameraPreview) {
-                showCameraPreview = false
-            } else if (companionUiState.isActive) {
-                com.shijing.xomniclaw.voice.ScreenCompanionController.exitCompanionMode(stopAgent = true)
-            } else if (behaviorRecordingState.isRecording) {
-                com.shijing.xomniclaw.behavior.BehaviorRecordingController.stop()
-            } else {
-                showVisionSourcePicker = true
-            }
-        },
         isVoiceListening = isVoiceListening,
         isVoiceProcessing = isVoiceProcessing,
         onVoicePressStart = onVoicePressStart,
         onVoicePressEnd = onVoicePressEnd,
-        showCameraPreview = showCameraPreview,
-        cameraPreviewContent = {
-            CameraPreviewOverlay(
-                framePusher = framePusher,
-                screenSampler = screenSampler,
-                source = visionFrameSource,
-                onClose = { showCameraPreview = false },
-                onSwitchCamera = {
-                    visionFrameSource = when (visionFrameSource) {
-                        VisionFrameSource.CAMERA_BACK -> VisionFrameSource.CAMERA_FRONT
-                        VisionFrameSource.CAMERA_FRONT -> VisionFrameSource.CAMERA_BACK
-                        VisionFrameSource.SCREEN_CAPTURE -> VisionFrameSource.CAMERA_BACK
-                    }
-                },
-                isVoiceListening = isVoiceListening,
-                onVoicePressStart = onVoicePressStart,
-                onVoicePressEnd = onVoicePressEnd
-            )
-        }
     )
 }
 
@@ -1154,7 +876,6 @@ fun StatusTab(
     val tokenUsageStatus by MainEntryNew.tokenUsageStatus.collectAsState()
     val gatewayRunning = remember { mutableStateOf(false) }
     val skillsCount = remember { mutableStateOf(0) }
-    val scheduledTasks = remember { mutableStateOf<List<ScheduledTask>>(emptyList()) }
     val galleryMemorySettings = remember {
         mutableStateOf(
             GalleryMemorySettingsState(
@@ -1190,11 +911,6 @@ fun StatusTab(
         )
     }
     val loadErrorMessage = remember { mutableStateOf<String?>(null) }
-    val editingTask = remember { mutableStateOf<ScheduledTaskEditorState?>(null) }
-    val editErrorMessage = remember { mutableStateOf<String?>(null) }
-    val saveInProgress = remember { mutableStateOf(false) }
-    val taskActionInProgressId = remember { mutableStateOf<String?>(null) }
-    val pendingDeleteTask = remember { mutableStateOf<ScheduledTask?>(null) }
     val memoryDetailState = remember { mutableStateOf<MemoryDetailState?>(null) }
     val memoryDetailLoading = remember { mutableStateOf(false) }
     val manualGallerySyncInProgress = remember { mutableStateOf(false) }
@@ -1203,8 +919,6 @@ fun StatusTab(
     val galleryMemorySyncStatus = remember { mutableStateOf(GalleryMemorySyncStatus()) }
     // 开启「相册记忆与画像」总开关时给出一次明确授权说明。
     val showGalleryMemoryEnableHintDialog = remember { mutableStateOf(false) }
-    val taskSearchQuery = remember { mutableStateOf("") }
-    val taskSortOption = remember { mutableStateOf(ScheduledTaskSortOption.NEXT_TRIGGER_ASC) }
     val coroutineScope = rememberCoroutineScope()
 
     suspend fun refreshStatus() {
@@ -1238,36 +952,17 @@ fun StatusTab(
             skillsCount.value = 0
         }
 
-        try {
-            val taskManager = ScheduledTaskManager(context)
-            scheduledTasks.value = withContext(Dispatchers.IO) {
-                // 状态页刷新时自修复托管任务，避免升级或任务文件被清理后列表里看不到“全局记忆进化”。
-                MemoryEvolutionAutomationManager(context).ensureDefaultTask()
-                taskManager.listTasks()
-            }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            Log.e("StatusTab", "Failed to load scheduled tasks", e)
-            loadErrorMessage.value = "读取定时任务失败：${e.message}"
-        }
 
         try {
             val settingsStore = GalleryMemorySettingsStore()
             val settings = settingsStore.load()
-            val automationTask = GalleryMemoryAutomationManager(context, settingsStore)
-                .resolveManagedTask(settings.automationTaskId)
+            val automationTask = null
             galleryMemorySettings.value = GalleryMemorySettingsState(
                 featureEnabled = settings.featureEnabled,
                 profileLoadingEnabled = settings.profileLoadingEnabled,
                 scanIntervalMinutes = settings.scanIntervalMinutes,
                 manualSyncMaxImages = settings.manualSyncMaxImages,
-                automationTaskSummary = if (settings.featureEnabled) {
-                    automationTask?.let {
-                        "已启用，每隔 ${it.intervalMinutes ?: settings.scanIntervalMinutes} 分钟扫描一次"
-                    } ?: "已启用，等待后台自动任务创建"
-                } else {
-                    "未启用"
-                }
+                automationTaskSummary = if (settings.featureEnabled) "已启用" else "未启用",
             )
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -1338,25 +1033,11 @@ fun StatusTab(
         try {
             val settingsStore = GalleryMemorySettingsStore()
             val current = settingsStore.load()
-            val updated = GalleryMemoryAutomationManager(context, settingsStore).applySettings(
-                GalleryMemorySettings(
-                    featureEnabled = featureEnabled,
-                    profileLoadingEnabled = profileLoadingEnabled,
-                    scanIntervalMinutes = scanIntervalMinutes,
-                    manualSyncMaxImages = manualSyncMaxImages,
-                    automationTaskId = current.automationTaskId
-                )
-            )
-            galleryMemorySettings.value = GalleryMemorySettingsState(
-                featureEnabled = updated.featureEnabled,
-                profileLoadingEnabled = updated.profileLoadingEnabled,
-                scanIntervalMinutes = updated.scanIntervalMinutes,
-                manualSyncMaxImages = updated.manualSyncMaxImages,
-                automationTaskSummary = if (updated.featureEnabled) {
-                    "已启用，每隔 ${updated.scanIntervalMinutes} 分钟扫描一次"
-                } else {
-                    "未启用"
-                }
+            val updated = current.copy(
+                featureEnabled = featureEnabled,
+                profileLoadingEnabled = profileLoadingEnabled,
+                scanIntervalMinutes = scanIntervalMinutes,
+                manualSyncMaxImages = manualSyncMaxImages
             )
             refreshStatus()
         } catch (e: Exception) {
@@ -1436,20 +1117,6 @@ fun StatusTab(
         }
     }
 
-    val visibleScheduledTasks by remember(
-        scheduledTasks.value,
-        taskSearchQuery.value,
-        taskSortOption.value
-    ) {
-        derivedStateOf {
-            filterAndSortScheduledTasks(
-                tasks = scheduledTasks.value,
-                searchQuery = taskSearchQuery.value,
-                sortOption = taskSortOption.value
-            )
-        }
-    }
-
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -1463,101 +1130,6 @@ fun StatusTab(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
-    }
-
-    if (editingTask.value != null) {
-        ScheduledTaskEditDialog(
-            state = editingTask.value!!,
-            isSaving = saveInProgress.value,
-            errorMessage = editErrorMessage.value,
-            onDismiss = {
-                if (!saveInProgress.value) {
-                    editingTask.value = null
-                    editErrorMessage.value = null
-                }
-            },
-            onStateChange = {
-                editingTask.value = it
-                editErrorMessage.value = null
-            },
-            onSave = { updatedState ->
-                coroutineScope.launch {
-                    saveInProgress.value = true
-                    val taskManager = ScheduledTaskManager(context)
-                    val result = withContext(Dispatchers.IO) {
-                        taskManager.updateTask(
-                            ScheduledTaskEditDraft(
-                                taskId = updatedState.taskId,
-                                name = updatedState.name,
-                                instruction = updatedState.instruction,
-                                repeat = updatedState.repeat,
-                                runAtText = updatedState.runAtText.ifBlank { null },
-                                dailyTime = updatedState.dailyTime.ifBlank { null },
-                                daysOfWeekText = updatedState.daysOfWeekText.ifBlank { null },
-                                intervalMinutesText = updatedState.intervalMinutesText.ifBlank { null },
-                                timezone = updatedState.timezone.ifBlank { null },
-                                enabled = updatedState.enabled,
-                                exact = updatedState.exact,
-                                allowWhileIdle = updatedState.allowWhileIdle
-                            )
-                        )
-                    }
-                    saveInProgress.value = false
-
-                    if (result.success) {
-                        Toast.makeText(context, "定时任务已更新", Toast.LENGTH_SHORT).show()
-                        editingTask.value = null
-                        editErrorMessage.value = null
-                        refreshStatus()
-                    } else {
-                        editErrorMessage.value = result.errorMessage ?: "保存失败"
-                    }
-                }
-            }
-        )
-    }
-
-    pendingDeleteTask.value?.let { task ->
-        AlertDialog(
-            onDismissRequest = {
-                if (taskActionInProgressId.value == null) {
-                    pendingDeleteTask.value = null
-                }
-            },
-            title = { Text("删除定时任务") },
-            text = { Text("确认删除任务“${task.name}”？删除后不会自动恢复。") },
-            confirmButton = {
-                TextButton(
-                    enabled = taskActionInProgressId.value == null,
-                    onClick = {
-                        coroutineScope.launch {
-                            taskActionInProgressId.value = task.id
-                            val deleted = withContext(Dispatchers.IO) {
-                                ScheduledTaskManager(context).cancelTask(task.id)
-                            }
-                            taskActionInProgressId.value = null
-                            pendingDeleteTask.value = null
-                            if (deleted) {
-                                Toast.makeText(context, "定时任务已删除", Toast.LENGTH_SHORT).show()
-                                refreshStatus()
-                            } else {
-                                Toast.makeText(context, "删除失败，任务可能已不存在", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    }
-                ) {
-                    Text(if (taskActionInProgressId.value == task.id) "删除中..." else "删除")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    enabled = taskActionInProgressId.value == null,
-                    onClick = { pendingDeleteTask.value = null }
-                ) {
-                    Text("取消")
-                }
-            }
-        )
     }
 
     memoryDetailState.value?.let { detail ->
@@ -1664,50 +1236,6 @@ fun StatusTab(
 
         TokenUsageCard(status = tokenUsageStatus)
 
-        ScheduledTasksCard(
-            allTasksCount = scheduledTasks.value.size,
-            tasks = visibleScheduledTasks,
-            searchQuery = taskSearchQuery.value,
-            sortOption = taskSortOption.value,
-            actionInProgressTaskId = taskActionInProgressId.value,
-            onSearchQueryChange = { taskSearchQuery.value = it },
-            onSortOptionChange = { taskSortOption.value = it },
-            onRefresh = {
-                coroutineScope.launch {
-                    refreshStatus()
-                }
-            },
-            onEditTask = { task ->
-                editingTask.value = ScheduledTaskEditorState.fromTask(task)
-                editErrorMessage.value = null
-            },
-            onToggleTaskEnabled = { task, enabled ->
-                coroutineScope.launch {
-                    taskActionInProgressId.value = task.id
-                    val result = withContext(Dispatchers.IO) {
-                        ScheduledTaskManager(context).setTaskEnabled(task.id, enabled)
-                    }
-                    taskActionInProgressId.value = null
-                    if (result.success) {
-                        Toast.makeText(
-                            context,
-                            if (enabled) "定时任务已启用" else "定时任务已停用",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        refreshStatus()
-                    } else {
-                        Toast.makeText(
-                            context,
-                            result.errorMessage ?: "更新任务状态失败",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
-            },
-            onDeleteTask = { task ->
-                pendingDeleteTask.value = task
-            }
-        )
 
         GalleryMemorySettingsCard(
             state = galleryMemorySettings.value,
@@ -1820,8 +1348,8 @@ fun StatusTab(
             }
         )
     }
-}
 
+}
 private data class PermissionSnapshot(
     val overlay: Boolean,
     val accessibility: Boolean,
@@ -1866,194 +1394,6 @@ private fun TokenUsageCard(status: MainEntryNew.TokenUsageStatus) {
  */
 private fun formatTokenUsageLine(counter: MainEntryNew.TokenUsageCounter): String {
     return "输入 ${counter.promptTokens} / 输出 ${counter.completionTokens} / 合计 ${counter.totalTokens}"
-}
-
-@Composable
-private fun ScheduledTasksCard(
-    allTasksCount: Int,
-    tasks: List<ScheduledTask>,
-    searchQuery: String,
-    sortOption: ScheduledTaskSortOption,
-    actionInProgressTaskId: String?,
-    onSearchQueryChange: (String) -> Unit,
-    onSortOptionChange: (ScheduledTaskSortOption) -> Unit,
-    onRefresh: () -> Unit,
-    onEditTask: (ScheduledTask) -> Unit,
-    onToggleTaskEnabled: (ScheduledTask, Boolean) -> Unit,
-    onDeleteTask: (ScheduledTask) -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "定时任务",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = "当前共 ${allTasksCount} 个任务，当前显示 ${tasks.size} 个",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                TextButton(onClick = onRefresh) {
-                    Text("刷新")
-                }
-            }
-
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchQueryChange,
-                label = { Text("搜索任务") },
-                supportingText = { Text("支持按任务名、执行指令、重复类型搜索") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            ExposedDropdownField(
-                label = "排序方式",
-                value = formatTaskSortOptionLabel(sortOption),
-                options = ScheduledTaskSortOption.values().map { it.name },
-                enabled = true,
-                onValueSelected = { onSortOptionChange(ScheduledTaskSortOption.valueOf(it)) },
-                labelFormatter = { formatTaskSortOptionLabel(ScheduledTaskSortOption.valueOf(it)) }
-            )
-
-            if (allTasksCount == 0) {
-                Text(
-                    text = "暂无定时任务",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else if (tasks.isEmpty()) {
-                Text(
-                    text = "没有匹配当前搜索条件的定时任务",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                tasks.forEachIndexed { index, task ->
-                    ScheduledTaskListItem(
-                        task = task,
-                        actionsEnabled = actionInProgressTaskId == null || actionInProgressTaskId == task.id,
-                        onEdit = { onEditTask(task) },
-                        onToggleEnabled = { onToggleTaskEnabled(task, !task.enabled) },
-                        onDelete = { onDeleteTask(task) }
-                    )
-                    if (index != tasks.lastIndex) {
-                        Divider()
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ScheduledTaskListItem(
-    task: ScheduledTask,
-    actionsEnabled: Boolean,
-    onEdit: () -> Unit,
-    onToggleEnabled: () -> Unit,
-    onDelete: () -> Unit
-) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = task.name,
-                    style = MaterialTheme.typography.titleSmall
-                )
-                Text(
-                    text = if (task.enabled) "已启用" else "已停用",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (task.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                )
-            }
-            TextButton(onClick = onEdit) {
-                Text("编辑")
-            }
-        }
-
-        Text(
-            text = "类型：${formatRepeatLabel(task.repeat)}",
-            style = MaterialTheme.typography.bodySmall
-        )
-        Text(
-            text = "下一次触发：${formatTaskScheduleSummary(task)}",
-            style = MaterialTheme.typography.bodySmall
-        )
-        Text(
-            text = "执行指令：${task.instruction}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        TaskDiagnosticsBlock(task = task)
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            TextButton(
-                onClick = onToggleEnabled,
-                enabled = actionsEnabled
-            ) {
-                Text(if (task.enabled) "停用" else "启用")
-            }
-            TextButton(
-                onClick = onDelete,
-                enabled = actionsEnabled
-            ) {
-                Text("删除")
-            }
-        }
-    }
-}
-
-@Composable
-private fun TaskDiagnosticsBlock(task: ScheduledTask) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        Text(
-            text = "最近触发：${task.lastTriggeredAtMs?.let { formatTimestamp(it) } ?: "暂无"}",
-            style = MaterialTheme.typography.bodySmall
-        )
-        Text(
-            text = "触发延迟：${task.lastTriggerDelayMs?.let { "${it}ms" } ?: "暂无"}",
-            style = MaterialTheme.typography.bodySmall
-        )
-        Text(
-            text = "派发耗时：${task.lastDispatchLatencyMs?.let { "${it}ms" } ?: "暂无"}",
-            style = MaterialTheme.typography.bodySmall
-        )
-        Text(
-            text = "触发来源：${task.lastTriggerSource ?: "暂无"}",
-            style = MaterialTheme.typography.bodySmall
-        )
-        task.lastWakeSummary?.takeIf { it.isNotBlank() }?.let { wakeSummary ->
-            Text(
-                text = "亮屏结果：$wakeSummary",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
 }
 
 @Composable
@@ -2456,192 +1796,7 @@ private fun MemoryFileActionRow(
 }
 
 @Composable
-private fun ScheduledTaskEditDialog(
-    state: ScheduledTaskEditorState,
-    isSaving: Boolean,
-    errorMessage: String?,
-    onDismiss: () -> Unit,
-    onStateChange: (ScheduledTaskEditorState) -> Unit,
-    onSave: (ScheduledTaskEditorState) -> Unit
-) {
-    val repeatOptions = listOf(
-        ScheduledTask.REPEAT_ONCE,
-        ScheduledTask.REPEAT_DAILY,
-        ScheduledTask.REPEAT_WEEKLY,
-        ScheduledTask.REPEAT_WORKDAY,
-        ScheduledTask.REPEAT_INTERVAL
-    )
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text("编辑定时任务")
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedTextField(
-                    value = state.name,
-                    onValueChange = { onStateChange(state.copy(name = it)) },
-                    label = { Text("任务名称") },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isSaving
-                )
-                OutlinedTextField(
-                    value = state.instruction,
-                    onValueChange = { onStateChange(state.copy(instruction = it)) },
-                    label = { Text("执行指令") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 3,
-                    enabled = !isSaving
-                )
-
-                ExposedDropdownField(
-                    label = "重复类型",
-                    value = state.repeat,
-                    options = repeatOptions,
-                    enabled = !isSaving,
-                    onValueSelected = { onStateChange(state.copy(repeat = it)) },
-                    labelFormatter = { "${formatRepeatLabel(it)} ($it)" }
-                )
-
-                when (state.repeat) {
-                    ScheduledTask.REPEAT_ONCE -> {
-                        OutlinedTextField(
-                            value = state.runAtText,
-                            onValueChange = { onStateChange(state.copy(runAtText = it)) },
-                            label = { Text("执行时间") },
-                            supportingText = { Text("格式：yyyy-MM-dd HH:mm 或 yyyy-MM-dd HH:mm:ss") },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !isSaving
-                        )
-                    }
-
-                    ScheduledTask.REPEAT_DAILY,
-                    ScheduledTask.REPEAT_WORKDAY -> {
-                        OutlinedTextField(
-                            value = state.dailyTime,
-                            onValueChange = { onStateChange(state.copy(dailyTime = it)) },
-                            label = { Text("每日时间") },
-                            supportingText = { Text("格式：HH:mm，例如 21:30") },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !isSaving
-                        )
-                    }
-
-                    ScheduledTask.REPEAT_WEEKLY -> {
-                        OutlinedTextField(
-                            value = state.dailyTime,
-                            onValueChange = { onStateChange(state.copy(dailyTime = it)) },
-                            label = { Text("每周时间") },
-                            supportingText = { Text("格式：HH:mm，例如 09:00") },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !isSaving
-                        )
-                        OutlinedTextField(
-                            value = state.daysOfWeekText,
-                            onValueChange = { onStateChange(state.copy(daysOfWeekText = it)) },
-                            label = { Text("周几") },
-                            supportingText = { Text("支持：周三 / 1,3,5 / mon,wed,fri") },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !isSaving
-                        )
-                    }
-
-                    ScheduledTask.REPEAT_INTERVAL -> {
-                        OutlinedTextField(
-                            value = state.intervalMinutesText,
-                            onValueChange = { onStateChange(state.copy(intervalMinutesText = it)) },
-                            label = { Text("间隔分钟数") },
-                            supportingText = { Text("例如：30 表示每隔 30 分钟") },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !isSaving
-                        )
-                    }
-                }
-
-                OutlinedTextField(
-                    value = state.timezone,
-                    onValueChange = { onStateChange(state.copy(timezone = it)) },
-                    label = { Text("时区（可选）") },
-                    supportingText = { Text("留空则使用系统时区，例如 Asia/Shanghai") },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isSaving
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                ) {
-                    Text("启用任务")
-                    Switch(
-                        checked = state.enabled,
-                        onCheckedChange = { onStateChange(state.copy(enabled = it)) },
-                        enabled = !isSaving
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                ) {
-                    Text("精确闹钟")
-                    Switch(
-                        checked = state.exact,
-                        onCheckedChange = { onStateChange(state.copy(exact = it)) },
-                        enabled = !isSaving
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                ) {
-                    Text("允许息屏空闲时触发")
-                    Switch(
-                        checked = state.allowWhileIdle,
-                        onCheckedChange = { onStateChange(state.copy(allowWhileIdle = it)) },
-                        enabled = !isSaving
-                    )
-                }
-
-                errorMessage?.let { message ->
-                    Text(
-                        text = message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onSave(state) },
-                enabled = !isSaving
-            ) {
-                Text(if (isSaving) "保存中..." else "保存")
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                enabled = !isSaving
-            ) {
-                Text("取消")
-            }
-        }
-    )
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
 private fun ExposedDropdownField(
     label: String,
     value: String,
@@ -2688,35 +1843,6 @@ private fun ExposedDropdownField(
                 )
             }
         }
-    }
-}
-
-private fun formatTaskScheduleSummary(task: ScheduledTask): String {
-    if (!task.enabled) {
-        return "已停用"
-    }
-
-    return when (task.repeat) {
-        ScheduledTask.REPEAT_ONCE -> task.runAtMs?.let { formatTimestamp(it) } ?: "未配置"
-        ScheduledTask.REPEAT_DAILY -> "${task.dailyTime ?: "--:--"}，下次 ${task.nextTriggerAtMs?.let { formatTimestamp(it) } ?: "未知"}"
-        ScheduledTask.REPEAT_WEEKLY -> {
-            val days = task.daysOfWeek?.joinToString(",") ?: "-"
-            "周[$days] ${task.dailyTime ?: "--:--"}，下次 ${task.nextTriggerAtMs?.let { formatTimestamp(it) } ?: "未知"}"
-        }
-        ScheduledTask.REPEAT_WORKDAY -> "${task.dailyTime ?: "--:--"}，下次 ${task.nextTriggerAtMs?.let { formatTimestamp(it) } ?: "未知"}"
-        ScheduledTask.REPEAT_INTERVAL -> "每隔 ${task.intervalMinutes ?: 0} 分钟，下次 ${task.nextTriggerAtMs?.let { formatTimestamp(it) } ?: "未知"}"
-        else -> task.nextTriggerAtMs?.let { formatTimestamp(it) } ?: "未知"
-    }
-}
-
-fun formatRepeatLabel(repeat: String): String {
-    return when (repeat) {
-        ScheduledTask.REPEAT_ONCE -> "一次性"
-        ScheduledTask.REPEAT_DAILY -> "每天"
-        ScheduledTask.REPEAT_WEEKLY -> "每周"
-        ScheduledTask.REPEAT_WORKDAY -> "工作日"
-        ScheduledTask.REPEAT_INTERVAL -> "固定间隔"
-        else -> repeat
     }
 }
 
@@ -3129,7 +2255,6 @@ fun SettingsTab(
         }
 
         // device(snapshot) 的 YOLO 附加树默认开关
-        DeviceYoloFusedTreeSwitch()
 
         // Prompt dumps 开关（默认关闭）
         PromptDumpsSwitch()
@@ -3226,29 +2351,7 @@ private fun VersionInfoCard() {
             ) {
                 TextButton(
                     onClick = {
-                        val activity = context as? MainActivityCompose
-                        if (activity == null) {
-                            Toast.makeText(context, "当前页面无法执行检查更新", Toast.LENGTH_SHORT).show()
-                            return@TextButton
-                        }
-                        Toast.makeText(activity, "正在检查更新...", Toast.LENGTH_SHORT).show()
-                        scope.launch {
-                            try {
-                                val updater = com.shijing.xomniclaw.updater.AppUpdater(activity)
-                                val info = updater.checkForUpdate()
-                                if (info.hasUpdate) {
-                                    activity.silentUpdateCheck()
-                                } else {
-                                    Toast.makeText(
-                                        activity,
-                                        "已是最新版本 v${info.currentVersion}",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            } catch (_: Exception) {
-                                Toast.makeText(activity, "检查更新失败", Toast.LENGTH_SHORT).show()
-                            }
-                        }
+                        Toast.makeText(context, "更新检查已移除（P2 精简）", Toast.LENGTH_SHORT).show()
                     },
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                 ) {
@@ -3269,119 +2372,8 @@ private fun VersionInfoCard() {
 }
 
 @Composable
-fun DeviceYoloFusedTreeSwitch() {
-    val settingsStore = remember { DeviceToolSettingsStore() }
-    var settings by remember {
-        mutableStateOf(settingsStore.load())
-    }
 
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Snapshot 附加 YOLO 结果",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = "关闭时仅返回无障碍 snapshot；开启后会并行执行 YOLO，并追加原始检测结果给大模型参考。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
 
-                Switch(
-                    checked = settings.includeYoloFusedTreeByDefault,
-                    onCheckedChange = { enabled ->
-                        val updated = settings.copy(includeYoloFusedTreeByDefault = enabled)
-                        settings = updated
-                        settingsStore.save(updated)
-                    }
-                )
-            }
-
-            Divider()
-
-            DeviceYoloThresholdSlider(
-                title = "YOLO 置信度阈值",
-                description = "分数低于该值的检测框会被过滤。",
-                value = settings.yoloConfidenceThreshold,
-                valueRange = DeviceYoloThresholdConfig.MIN_CONFIDENCE..DeviceYoloThresholdConfig.MAX_CONFIDENCE,
-                onValueChange = { value ->
-                    val updated = settings.copy(yoloConfidenceThreshold = value)
-                    settings = updated
-                    settingsStore.save(updated)
-                }
-            )
-
-            DeviceYoloThresholdSlider(
-                title = "YOLO IoU 阈值",
-                description = "NMS 去重时使用，越大越容易保留重叠检测框。",
-                value = settings.yoloIouThreshold,
-                valueRange = DeviceYoloThresholdConfig.MIN_IOU..DeviceYoloThresholdConfig.MAX_IOU,
-                onValueChange = { value ->
-                    val updated = settings.copy(yoloIouThreshold = value)
-                    settings = updated
-                    settingsStore.save(updated)
-                }
-            )
-        }
-    }
-}
-
-@Composable
-private fun DeviceYoloThresholdSlider(
-    title: String,
-    description: String,
-    value: Float,
-    valueRange: ClosedFloatingPointRange<Float>,
-    onValueChange: (Float) -> Unit
-) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Text(
-                text = String.format(Locale.US, "%.3f", value),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-        Slider(
-            value = value,
-            onValueChange = onValueChange,
-            valueRange = valueRange
-        )
-    }
-}
-
-@Composable
 fun PromptDumpsSwitch() {
     val mmkv = remember { MMKV.defaultMMKV() }
     var isEnabled by remember {

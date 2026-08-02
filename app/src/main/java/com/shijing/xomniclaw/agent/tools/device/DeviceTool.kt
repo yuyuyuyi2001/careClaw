@@ -25,8 +25,6 @@ import com.shijing.xomniclaw.accessibility.AccessibilityProxy
 import com.shijing.xomniclaw.accessibility.service.ViewNode
 import com.shijing.xomniclaw.agent.tools.Tool
 import com.shijing.xomniclaw.agent.tools.ToolResult
-import com.shijing.xomniclaw.agent.tools.device.yolo.UiDetectionFormatter
-import com.shijing.xomniclaw.agent.tools.device.yolo.UiYoloSnapshotEngine
 import com.shijing.xomniclaw.providers.FunctionDefinition
 import com.shijing.xomniclaw.providers.ParametersSchema
 import com.shijing.xomniclaw.providers.PropertySchema
@@ -144,7 +142,6 @@ class DeviceTool(private val context: Context) : Tool {
 
     private val refManager = RefManager()
     private val dualTrackEngine by lazy { DualTrackDecisionEngine(context) }
-    private val yoloSnapshotEngine by lazy { UiYoloSnapshotEngine(context) }
 
     override fun getToolDefinition(): ToolDefinition {
         return ToolDefinition(
@@ -256,10 +253,6 @@ class DeviceTool(private val context: Context) : Tool {
                             description = "Snapshot format: compact (default) | tree | interactive",
                             enum = listOf("compact", "tree", "interactive")
                         ),
-                        "include_yolo_fused_tree" to PropertySchema(
-                            type = "boolean",
-                            description = "For action=snapshot: whether to append raw YOLO detections for the model. Default false; when true, YOLO runs in parallel with snapshot formatting."
-                        )
                     ),
                     required = listOf("action")
                 )
@@ -386,11 +379,6 @@ class DeviceTool(private val context: Context) : Tool {
 
     private suspend fun executeSnapshot(args: Map<String, Any?>): ToolResult {
         val format = (args["format"] as? String) ?: "compact"
-        val defaultSettings = DeviceToolSettingsStore().load()
-        val includeYoloFusedTree = DeviceSnapshotOptions.shouldIncludeYoloFusedTree(
-            args = args,
-            defaultEnabled = defaultSettings.includeYoloFusedTreeByDefault
-        )
 
         val proxy = AccessibilityProxy
 
@@ -434,27 +422,10 @@ class DeviceTool(private val context: Context) : Tool {
             }
         } catch (e: Exception) { null }
 
-        val (body, yoloSnapshotResult) = if (includeYoloFusedTree) {
-            coroutineScope {
-                // 仅在显式开启时，并行执行 YOLO；默认 snapshot 仍只返回 UI tree。
-                val yoloDeferred = async(Dispatchers.Default) {
-                    yoloSnapshotEngine.buildSnapshotResult(viewNodes, nodes)
-                }
-                val formattedBody = when (format) {
-                    "tree" -> SnapshotFormatter.tree(nodes, width, height, appName)
-                    "interactive" -> SnapshotFormatter.interactive(nodes, appName, height)
-                    else -> SnapshotFormatter.compact(nodes, width, height, appName)
-                }
-                val yoloResult = yoloDeferred.await()
-                (formattedBody + "\n\n" + UiDetectionFormatter.toSnapshotAppendix(yoloResult)) to yoloResult
-            }
-        } else {
-            val formattedBody = when (format) {
-                "tree" -> SnapshotFormatter.tree(nodes, width, height, appName)
-                "interactive" -> SnapshotFormatter.interactive(nodes, appName, height)
-                else -> SnapshotFormatter.compact(nodes, width, height, appName)
-            }
-            formattedBody to null
+        val body = when (format) {
+            "tree" -> SnapshotFormatter.tree(nodes, width, height, appName)
+            "interactive" -> SnapshotFormatter.interactive(nodes, appName, height)
+            else -> SnapshotFormatter.compact(nodes, width, height, appName)
         }
 
         val output = buildString {
@@ -492,24 +463,8 @@ class DeviceTool(private val context: Context) : Tool {
             append(body)
         }
 
-        // Snapshot 不再默认执行 YOLO；仅在 include_yolo_fused_tree=true 时并行补充原始检测结果，
-        // 仍然不会触发异步 VLM 预热，避免隐藏耗时与网络开销。
 
-        return ToolResult.success(
-            output,
-            metadata = buildMap {
-                put("include_yolo_fused_tree", includeYoloFusedTree)
-                yoloSnapshotResult?.let {
-                    put("yolo_status", it.status)
-                    put("yolo_raw_count", it.rawDetections.size)
-                    put("yolo_fused_count", it.fusedDetections.size)
-                    put("yolo_ocr_count", it.rawDetections.count { detection -> detection.recognizedText != null })
-                    put("yolo_ocr_non_blank_count", it.rawDetections.count { detection -> !detection.recognizedText.isNullOrBlank() })
-                    put("yolo_raw_debug_image_path", it.rawDebugImagePath)
-                    put("yolo_fused_debug_image_path", it.fusedDebugImagePath)
-                }
-            }
-        )
+        return ToolResult.success(output)
     }
 
     // ==================== screenshot ====================
@@ -1412,37 +1367,7 @@ class DeviceTool(private val context: Context) : Tool {
         className: String,
         aliasNote: String?
     ): ToolResult {
-        if (!com.shijing.xomniclaw.deeplink.RootShellExecutor.hasRootAccess()) {
-            return ToolResult.error("Root 不可用，无法通过 root shell 启动 Activity。请先获取 root 权限。")
-        }
-
-        val amCommand = "am start -n $packageName/$className"
-        val result = com.shijing.xomniclaw.deeplink.RootShellExecutor.executeAmCommand(amCommand)
-
-        return if (result.success) {
-            kotlinx.coroutines.delay(POST_OPEN_DELAY_MS)
-            val appName = try {
-                context.packageManager.getApplicationLabel(
-                    context.packageManager.getApplicationInfo(packageName, 0)
-                ).toString()
-            } catch (_: Exception) { packageName }
-
-            val shortClassName = className.substringAfterLast(".")
-            appendUiVerifyHintAfterOpen(
-                ToolResult.success(
-                    "Opened $appName / $shortClassName via root shell" +
-                        (aliasNote?.let { " [$it]" } ?: ""),
-                    mapOf(
-                        "package_name" to packageName,
-                        "class_name" to className,
-                        "app_name" to appName,
-                        "method" to "root_shell"
-                    )
-                )
-            )
-        } else {
-            ToolResult.error("Root shell 启动失败: ${result.error.ifBlank { result.output }}")
-        }
+        return ToolResult.error("Root shell 启动已移除（无 root 依赖）")
     }
 
     /**

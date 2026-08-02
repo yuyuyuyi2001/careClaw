@@ -8,7 +8,7 @@ package com.shijing.xomniclaw.agent.tools
  */
 
 
-import com.shijing.xomniclaw.gateway.methods.ConfigMethods
+import com.shijing.xomniclaw.config.ConfigMethods
 import com.shijing.xomniclaw.providers.FunctionDefinition
 import com.shijing.xomniclaw.providers.ParametersSchema
 import com.shijing.xomniclaw.providers.PropertySchema

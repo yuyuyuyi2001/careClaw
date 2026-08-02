@@ -34,9 +34,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import com.shijing.xomniclaw.gateway.GatewayService
-import com.shijing.xomniclaw.gateway.GatewayServer
-import com.shijing.xomniclaw.gateway.GatewayController
 import com.shijing.xomniclaw.agent.session.SessionManager
 import com.shijing.xomniclaw.agent.skills.SkillsLoader
 import com.shijing.xomniclaw.config.ConfigLoader
@@ -68,10 +65,8 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
             get() = application as MyApplication
 
         // Gateway Server
-        private var gatewayServer: GatewayServer? = null
 
         // Gateway Controller
-        private var gatewayController: GatewayController? = null
 
         // Message Queue Manager: fully aligned with OmniClaw's queue mechanism
         // Supports five modes: interrupt, steer, followup, collect, queue
@@ -174,10 +169,6 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
         // Initialize Workspace (aligned with OmniClaw)
         initializeWorkspace()
 
-        // Initialize Cron scheduled tasks
-        initializeCronJobs()
-        ensureMemoryEvolutionTask()
-        rescheduleSystemScheduledTasks()
 
         // Register global exception handler
         Thread.setDefaultUncaughtExceptionHandler(GlobalExceptionHandler())
@@ -191,8 +182,6 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
         // Start foreground service keep-alive
         startForegroundServiceKeepAlive()
 
-        // Start Gateway server
-        startGatewayServer()
 
         // ✅ Test config system
         testConfigSystem()
@@ -203,8 +192,6 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
             ensureWakeLockForTesting()
         }, 1000) // 1 second delay
 
-        // 🌐 Start Gateway service
-        startGatewayService()
 
         // 🪟 Initialize floating window manager
         com.shijing.xomniclaw.ui.floatwindow.SessionFloatWindow.init(this)
@@ -257,41 +244,6 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
             Log.e(TAG, "❌ 前台服务启动失败", e)
         }
     }
-
-    /**
-     * Start Gateway server
-     */
-    private fun startGatewayServer() {
-        try {
-            // Stop old instance first (if exists)
-            gatewayServer?.stop()
-            gatewayServer = null
-
-            // Create and start new instance
-            gatewayServer = GatewayServer(this, port = 8080)
-            gatewayServer?.start()
-
-            Log.i(TAG, "✅ Gateway Server 启动成功")
-            Log.i(TAG, "  - HTTP: http://0.0.0.0:8080")
-            Log.i(TAG, "  - WebSocket: ws://0.0.0.0:8080/ws")
-
-            // Get local IP
-            GlobalScope.launch(Dispatchers.IO) {
-                try {
-                    val ip = getLocalIpAddress()
-                    if (ip != null) {
-                        Log.i(TAG, "  - 局域网访问: http://$ip:8080")
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "无法获取本机 IP", e)
-                }
-            }
-
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Gateway Server 启动失败", e)
-        }
-    }
-
     /**
      * Get local IP address
      */
@@ -344,46 +296,6 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
             Log.e(TAG, "初始化文件日志系统失败", e)
         }
     }
-
-    /**
-     * Initialize Cron scheduled tasks
-     */
-    private fun initializeCronJobs() {
-        try {
-            com.shijing.xomniclaw.cron.CronInitializer.initialize(this)
-            Log.i(TAG, "✅ Cron 系统已初始化")
-        } catch (e: Exception) {
-            Log.e(TAG, "初始化 Cron 系统失败", e)
-        }
-    }
-
-    /**
-     * 重新同步系统级定时任务。
-     *
-     * 即使进程被重启，只要任务定义仍在本地文件中，就会在应用启动时重新注册到 AlarmManager。
-     */
-    private fun rescheduleSystemScheduledTasks() {
-        try {
-            com.shijing.xomniclaw.scheduler.ScheduledTaskManager(this).rescheduleAll()
-            Log.i(TAG, "✅ AlarmManager 定时任务已同步")
-        } catch (e: Exception) {
-            Log.e(TAG, "同步 AlarmManager 定时任务失败", e)
-        }
-    }
-
-    /**
-     * 确保全局记忆进化使用专门的 interval 定时任务批处理，避免普通任务结束时直接改长期记忆。
-     */
-    private fun ensureMemoryEvolutionTask() {
-        try {
-            com.shijing.xomniclaw.agent.memory.evolution.MemoryEvolutionAutomationManager(this)
-                .ensureDefaultTask()
-            Log.i(TAG, "✅ 全局记忆进化定时任务已检查")
-        } catch (e: Exception) {
-            Log.e(TAG, "初始化全局记忆进化定时任务失败", e)
-        }
-    }
-
     /**
      * Initialize Workspace (aligned with OmniClaw)
      */
@@ -440,68 +352,6 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
             Log.e(TAG, "❌ 配置系统测试异常: ${e.message}", e)
         }
     }
-
-    /**
-     * Start Gateway service
-     */
-    private fun startGatewayService() {
-        try {
-            Log.i(TAG, "========================================")
-            Log.i(TAG, "🌐 启动 Gateway 服务 (GatewayController)...")
-            Log.i(TAG, "========================================")
-
-            // Initialize TaskDataManager
-            val taskDataManager = TaskDataManager.getInstance()
-
-            // Initialize LLM Provider
-            val llmProvider = UnifiedLLMProvider(this)
-
-            // Initialize dependencies
-            val toolRegistry = ToolRegistry(this, taskDataManager)
-            val androidToolRegistry = AndroidToolRegistry(this, taskDataManager)
-            val skillsLoader = SkillsLoader(this)
-            val workspaceDir = java.io.File("/sdcard/.xomniclaw/workspace")
-            val sessionManager = SessionManager(workspaceDir)
-
-            // Create AgentLoop (requires these dependencies)
-            val agentLoop = AgentLoop(
-                llmProvider = llmProvider,
-                toolRegistry = toolRegistry,
-                androidToolRegistry = androidToolRegistry,
-                contextManager = null,
-                maxIterations = 50,
-                modelRef = null
-            )
-
-            // Create GatewayController
-            gatewayController = GatewayController(
-                context = this,
-                agentLoop = agentLoop,
-                sessionManager = sessionManager,
-                toolRegistry = toolRegistry,
-                androidToolRegistry = androidToolRegistry,
-                skillsLoader = skillsLoader,
-                port = 8765,
-                authToken = null // Temporarily disable auth
-            )
-
-            Log.i(TAG, "✅ GatewayController 实例创建成功")
-
-            // Start service
-            gatewayController?.start()
-
-            Log.i(TAG, "========================================")
-            Log.i(TAG, "✅ Gateway 服务已启动: ws://0.0.0.0:8765")
-            Log.i(TAG, "========================================")
-
-        } catch (e: Exception) {
-            Log.e(TAG, "========================================")
-            Log.e(TAG, "❌ Gateway 初始化失败", e)
-            e.printStackTrace()
-            Log.e(TAG, "========================================")
-        }
-    }
-
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
 
     }
@@ -550,9 +400,6 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
     override fun onTerminate() {
         super.onTerminate()
 
-        // Stop Gateway Server
-        gatewayServer?.stop()
-        gatewayServer = null
 
         Log.i(TAG, "应用终止，所有服务已停止")
     }

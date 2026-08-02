@@ -547,9 +547,6 @@ object MainEntryNew {
 
                     // 2. Broadcast user message
                     Log.d(TAG, "📤 [Broadcast] Broadcasting user message...")
-                    com.shijing.xomniclaw.gateway.GatewayServer.broadcastChatMessage(
-                        effectiveSessionId, "user", userInput
-                    )
                     // 先把本轮 user 落盘，保证后续 thinking 永远在 user 之后。
                     ensureUserMessagePersisted(session, sessionUiContext)
 
@@ -599,9 +596,6 @@ object MainEntryNew {
                             Log.d(TAG, "✅ Final content matches last block reply, skipping broadcast")
                         } else {
                             Log.d(TAG, "📤 [Broadcast] Broadcasting AI response...")
-                            com.shijing.xomniclaw.gateway.GatewayServer.broadcastChatMessage(
-                                effectiveSessionId, "assistant", displayForUser
-                            )
                         }
                     }
                     sessionUiContext.lastBlockReplyText.set(null)
@@ -715,9 +709,6 @@ object MainEntryNew {
 
                 // 广播错误消息到聊天界面
                 try {
-                    com.shijing.xomniclaw.gateway.GatewayServer.broadcastChatMessage(
-                        effectiveSessionId, "assistant", errorMessage
-                    )
                     Log.d(TAG, "📤 [Broadcast] Error message sent to user")
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to broadcast error message", e)
@@ -1124,9 +1115,6 @@ object MainEntryNew {
                     emitProgressToUi(it, "block_reply", "中间回复", update.text)
                     // 中间回复需要绑定到本次 run 的 session，不能再走全局 activeSessionId。
                     it.lastBlockReplyText.set(update.text)
-                    com.shijing.xomniclaw.gateway.GatewayServer.broadcastChatMessage(
-                        it.sessionId, "assistant", update.text
-                    )
                 }
             }
         }
@@ -1509,11 +1497,6 @@ object MainEntryNew {
         }
 
         try {
-            com.shijing.xomniclaw.gateway.GatewayServer.broadcastChatMessage(
-                sessionId,
-                "assistant",
-                notice
-            )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to broadcast return-to-main notice", e)
         }

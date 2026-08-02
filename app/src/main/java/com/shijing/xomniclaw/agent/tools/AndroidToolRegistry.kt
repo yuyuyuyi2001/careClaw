@@ -63,8 +63,6 @@ class AndroidToolRegistry(
         register(CopyImagesToAlbumSkill(context))   // Copy URIs into new Pictures/<album>/ folder
         register(InstallAppSkill(context))         // Install APK
         register(StartActivityTool(context))       // Start Activity
-        register(ScheduleTaskSkill(context))       // AlarmManager-based scheduled tasks
-        register(ScheduleAppTaskSkill(context))    // Natural-language app scheduling
         register(GalleryMemorySkill(context))      // Gallery -> memory -> user profile
         register(MemoryEvolutionSkill(context))    // Task memories -> MEMORY.md -> user profile
 

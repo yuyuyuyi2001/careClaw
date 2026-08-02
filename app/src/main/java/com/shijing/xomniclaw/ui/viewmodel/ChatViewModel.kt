@@ -12,7 +12,6 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.shijing.xomniclaw.agent.context.ConversationMemoryPolicy
-import com.shijing.xomniclaw.channel.ChannelManager
 import com.shijing.xomniclaw.ui.compose.ChatMessage
 import com.shijing.xomniclaw.ui.compose.ChatMessageKind
 import com.shijing.xomniclaw.ui.compose.MessageStatus
@@ -51,7 +50,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     // Single data source: SessionManager
     private val uiSessionManager = SessionManager()
-    private val channelManager = ChannelManager(application)
 
     // Expose session-related flows
     val sessions: StateFlow<List<SessionManager.Session>> = uiSessionManager.sessions
@@ -280,7 +278,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         Log.d(TAG, "💬 [Send] $content")
 
         // Record inbound
-        channelManager.recordInbound()
 
         val sessionId = currentSession.value.id
 

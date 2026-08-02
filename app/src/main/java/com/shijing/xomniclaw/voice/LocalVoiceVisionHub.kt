@@ -10,8 +10,6 @@ import com.shijing.xomniclaw.core.MainEntryNew
 import com.shijing.xomniclaw.agent.loop.LlmTokenUsage
 import com.shijing.xomniclaw.providers.UnifiedLLMProvider
 import com.shijing.xomniclaw.providers.llm.Message
-import com.shijing.xomniclaw.vision.CameraFramePusher
-import com.shijing.xomniclaw.vision.VisionFrameBuffer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -240,7 +238,7 @@ class LocalVoiceVisionHub(
             return finalize("我不理解。", null, ts, userInput)
         }
 
-        val cameraRunningNow = CameraFramePusher.isAnyCameraRunning()
+        val cameraRunningNow = false
         val shouldUseVisualRoute = voiceStartedWithVision || cameraRunningNow
         // 仅当“按下时不在视觉模式”且“当前也无相机采样”时，才走纯文本直通。
         // 这样可避免：按下说话时在视觉模式，中途关闭预览导致被错误切到纯文本链路。
@@ -374,7 +372,7 @@ class LocalVoiceVisionHub(
         alignedFrameTsMs: Long?,
         allowBufferFramesWhenCameraStopped: Boolean
     ): List<ByteArray> {
-        val cameraRunning = CameraFramePusher.isAnyCameraRunning()
+        val cameraRunning = false
         if (!cameraRunning && !allowBufferFramesWhenCameraStopped) {
             trace("frame_policy", "camera not running -> skip attaching frame")
             return emptyList()
@@ -386,16 +384,10 @@ class LocalVoiceVisionHub(
             } else {
                 trace("frame_align", "pressStartTs missing, fallback to query policy")
             }
-            return VisionFrameBuffer.selectFramesForQuery(userInput)
-        }
-        val alignedFrame = VisionFrameBuffer.getLatestFrameAtOrBefore(alignedFrameTsMs)
-            ?: VisionFrameBuffer.getFrameClosestTo(alignedFrameTsMs)
-        if (alignedFrame != null) {
-            trace("frame_align", "use aligned frame at pressStartTs=$alignedFrameTsMs")
-            return listOf(alignedFrame)
+            return emptyList()
         }
         trace("frame_align", "aligned frame missing, fallback to query policy (cameraRunning=$cameraRunning)")
-        return VisionFrameBuffer.selectFramesForQuery(userInput)
+        return emptyList()
     }
 
     /**

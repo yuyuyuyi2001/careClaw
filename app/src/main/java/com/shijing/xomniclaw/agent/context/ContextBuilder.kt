@@ -19,7 +19,6 @@ import com.shijing.xomniclaw.agent.skills.SkillsLoader
 import com.shijing.xomniclaw.agent.tools.AndroidToolRegistry
 import com.shijing.xomniclaw.agent.tools.LlmOnDemandToolInclusion
 import com.shijing.xomniclaw.agent.tools.ToolRegistry
-import com.shijing.xomniclaw.channel.ChannelManager
 import com.shijing.xomniclaw.config.ConfigLoader
 import java.io.File
 import java.util.Locale
@@ -94,7 +93,6 @@ class ContextBuilder(
     // OmniClaw: /sdcard/.xomniclaw/workspace
     private val workspaceDir = File("/sdcard/.xomniclaw/workspace")
     private val skillsLoader = SkillsLoader(context)
-    private val channelManager = ChannelManager(context)
     private val galleryMemorySettingsStore = GalleryMemorySettingsStore()
 
     init {
@@ -105,7 +103,6 @@ class ContextBuilder(
         }
 
         // Initialize Channel state
-        channelManager.updateAccountStatus()
     }
 
     /**
@@ -269,7 +266,7 @@ Scope yourself to the user's request; on conflict pause and ask; respect stop/au
      * 4. Channel Section (OmniClaw agentPrompt.messageToolHints)
      */
     private fun buildChannelSection(): String {
-        val hints = channelManager.getAgentPromptHints()
+        val hints = emptyList<String>()
         return if (hints.isNotEmpty()) {
             // 使用固定标题避免对跨文件顶层常量的编译期解析依赖，降低增量编译不稳定时的符号错误概率。
             "## Channel: 📱 Android App\n" +
@@ -656,9 +653,7 @@ ALL internal reasoning MUST be inside <think>...</think>. Do not output any anal
         val model = try {
             configLoader?.loadOmniClawConfig()?.resolveDefaultModel() ?: "unknown"
         } catch (_: Exception) { "unknown" }
-        val channel = channelManager.getRuntimeChannelInfo().lines()
-            .firstOrNull { it.startsWith("channel:") }?.substringAfter(":")?.trim() ?: "android"
-
+        val channel = "android"
         val runtimeLine = listOf(
             "agent=OmniClaw",
             "model=$model",
