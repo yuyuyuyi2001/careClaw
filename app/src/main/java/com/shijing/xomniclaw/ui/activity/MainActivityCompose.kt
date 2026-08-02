@@ -1310,16 +1310,6 @@ fun StatusTab(
                     saveGalleryMemorySettings(profileLoadingEnabled = enabled)
                 }
             },
-            onScanIntervalMinutesChange = { minutes ->
-                coroutineScope.launch {
-                    saveGalleryMemorySettings(scanIntervalMinutes = minutes)
-                }
-            },
-            onManualSyncMaxImagesChange = { maxImages ->
-                coroutineScope.launch {
-                    saveGalleryMemorySettings(manualSyncMaxImages = maxImages)
-                }
-            },
             onRunManualSync = {
                 coroutineScope.launch {
                     runGalleryMemorySyncNow()
@@ -1459,14 +1449,9 @@ private fun GalleryMemorySettingsCard(
     syncStatus: GalleryMemorySyncStatus,
     onFeatureEnabledChange: (Boolean) -> Unit,
     onProfileLoadingEnabledChange: (Boolean) -> Unit,
-    onScanIntervalMinutesChange: (Int) -> Unit,
-    onManualSyncMaxImagesChange: (Int) -> Unit,
     onRunManualSync: () -> Unit,
     onResetCursor: () -> Unit
 ) {
-    val intervalOptions = listOf(30, 60, 180, 360, 720, 1440)
-    val manualSyncOptions = listOf(10, 20, 50, 100, 200, 500)
-
     Card(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -1555,24 +1540,6 @@ private fun GalleryMemorySettingsCard(
                 )
             }
 
-            Text(
-                text = "扫描频率",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Text(
-                text = "选择后台增量扫描相册的频率，开启总开关后生效",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            ExposedDropdownField(
-                label = "扫描频率",
-                value = formatGalleryMemoryIntervalLabel(state.scanIntervalMinutes),
-                options = intervalOptions.map { it.toString() },
-                enabled = !manualSyncInProgress,
-                onValueSelected = { onScanIntervalMinutesChange(it.toInt()) },
-                labelFormatter = { formatGalleryMemoryIntervalLabel(it.toInt()) }
-            )
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1593,14 +1560,6 @@ private fun GalleryMemorySettingsCard(
                     Text(if (manualSyncInProgress) "扫描中..." else "立即扫描一次")
                 }
             }
-            ExposedDropdownField(
-                label = "快速测试最多扫描",
-                value = formatGalleryMemoryManualSyncLabel(state.manualSyncMaxImages),
-                options = manualSyncOptions.map { it.toString() },
-                enabled = !manualSyncInProgress,
-                onValueSelected = { onManualSyncMaxImagesChange(it.toInt()) },
-                labelFormatter = { formatGalleryMemoryManualSyncLabel(it.toInt()) }
-            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1743,72 +1702,9 @@ private fun MemoryStatusCard(
             }
 
             Text(
-                text = "知识类文件：${snapshot.knowledgeFiles.size} 个",
+                text = "知识类文件：${snapshot.knowledgeFiles.size} 个 · 每日日志：${snapshot.dailyLogs.size} 个",
                 style = MaterialTheme.typography.bodySmall
             )
-            if (snapshot.knowledgeFiles.isEmpty()) {
-                Text(
-                    text = "暂无额外 memory 文件",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                snapshot.knowledgeFiles.take(6).forEach { fileName ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = fileName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(
-                            onClick = { onViewKnowledgeFile(fileName) },
-                            enabled = !memoryDetailLoading
-                        ) {
-                            Text("查看")
-                        }
-                    }
-                }
-            }
-
-            Divider()
-
-            Text(
-                text = "每日日志：${snapshot.dailyLogs.size} 个",
-                style = MaterialTheme.typography.bodySmall
-            )
-            if (snapshot.dailyLogs.isEmpty()) {
-                Text(
-                    text = "暂无 daily log",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                snapshot.dailyLogs.take(6).forEach { date ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "$date.md",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(
-                            onClick = { onViewDailyLog(date) },
-                            enabled = !memoryDetailLoading
-                        ) {
-                            Text("查看")
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -1850,75 +1746,12 @@ private fun MemoryFileActionRow(
     }
 }
 
-@Composable
-@OptIn(ExperimentalMaterial3Api::class)
-private fun ExposedDropdownField(
-    label: String,
-    value: String,
-    options: List<String>,
-    enabled: Boolean,
-    onValueSelected: (String) -> Unit,
-    labelFormatter: (String) -> String = { it }
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = {
-            if (enabled) {
-                expanded = !expanded
-            }
-        }
-    ) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(label) },
-            trailingIcon = {
-                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor(),
-            enabled = enabled
-        )
-
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(labelFormatter(option)) },
-                    onClick = {
-                        expanded = false
-                        onValueSelected(option)
-                    }
-                )
-            }
-        }
-    }
-}
-
 fun formatTimestamp(timestampMs: Long): String {
     return try {
         SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(timestampMs))
     } catch (_: Exception) {
         timestampMs.toString()
     }
-}
-
-private fun formatGalleryMemoryIntervalLabel(minutes: Int): String {
-    return when {
-        minutes % (24 * 60) == 0 -> "每 ${minutes / (24 * 60)} 天"
-        minutes % 60 == 0 -> "每 ${minutes / 60} 小时"
-        else -> "每 $minutes 分钟"
-    }
-}
-
-private fun formatGalleryMemoryManualSyncLabel(maxImages: Int): String {
-    return "最多 $maxImages 张"
 }
 
 private fun formatGalleryMemorySyncStage(stage: String): String {
