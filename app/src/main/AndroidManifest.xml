@@ -120,12 +120,6 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
-        <!-- 相册记忆手动扫描前台服务（支持切后台后继续执行并展示进度） -->
-        <service
-            android:name="com.shijing.xomniclaw.agent.memory.gallery.GalleryMemorySyncForegroundService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
         <!-- HTTP 入口（备用远程通道） -->
         <service
             android:name="com.shijing.xomniclaw.remote.GatewayService"

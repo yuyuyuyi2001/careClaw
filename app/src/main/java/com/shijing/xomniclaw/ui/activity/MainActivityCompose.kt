@@ -64,7 +64,6 @@ import com.shijing.xomniclaw.agent.memory.evolution.MemoryEvolutionStatus
 import com.shijing.xomniclaw.agent.memory.evolution.MemoryEvolutionStatusStore
 import com.shijing.xomniclaw.agent.memory.gallery.GalleryMemorySettings
 import com.shijing.xomniclaw.agent.memory.gallery.GalleryMemorySettingsStore
-import com.shijing.xomniclaw.agent.memory.gallery.GalleryMemorySyncForegroundService
 import com.shijing.xomniclaw.agent.memory.gallery.GalleryMemorySyncStatus
 import com.shijing.xomniclaw.agent.memory.gallery.GalleryMemorySyncStatusStore
 import com.shijing.xomniclaw.agent.memory.gallery.GalleryMemoryWorkflow
@@ -1063,20 +1062,59 @@ fun StatusTab(
     }
 
     suspend fun runGalleryMemorySyncNow() {
+        manualGallerySyncInProgress.value = true
         manualGallerySyncMessage.value = null
         try {
             val settings = GalleryMemorySettingsStore().load()
-            GalleryMemorySyncForegroundService.enqueue(
-                context = context,
+            val statusStore = GalleryMemorySyncStatusStore()
+            val workflow = createGalleryMemoryWorkflow(context)
+            statusStore.markRunning(
                 maxImages = settings.manualSyncMaxImages,
-                forceRescan = false,
-                updateProfile = true
+                message = "正在扫描未写入图片",
+                stage = "preparing"
             )
-            manualGallerySyncMessage.value =
-                "后台扫描已启动：本次最多补扫 ${settings.manualSyncMaxImages} 张未写入图片，切到后台后也会继续执行。"
+            manualGallerySyncMessage.value = "正在扫描相册（最多 ${settings.manualSyncMaxImages} 张）…"
+            val report = withContext(Dispatchers.IO) {
+                workflow.syncGalleryMemories(
+                    maxImages = settings.manualSyncMaxImages,
+                    forceRescan = false,
+                    updateProfile = true,
+                    progressListener = { progress ->
+                        statusStore.update { current ->
+                            current.copy(
+                                isRunning = true,
+                                stage = progress.stage,
+                                message = progress.message,
+                                maxImages = settings.manualSyncMaxImages,
+                                inspectedCount = progress.inspectedCount,
+                                discoveredCount = progress.discoveredCount,
+                                processedCount = progress.processedCount,
+                                writtenCount = progress.writtenCount,
+                                skippedCount = progress.skippedCount
+                            )
+                        }
+                        manualGallerySyncMessage.value = progress.message
+                    }
+                )
+            }
+            statusStore.update { current ->
+                current.copy(
+                    isRunning = false,
+                    stage = "completed",
+                    message = report.message,
+                    inspectedCount = report.inspectedCount,
+                    discoveredCount = report.scannedCount,
+                    processedCount = report.writtenCount,
+                    writtenCount = report.writtenCount,
+                    skippedCount = report.skippedCount
+                )
+            }
+            manualGallerySyncMessage.value = "扫描完成：${report.message}"
             refreshStatus()
         } catch (e: Exception) {
-            manualGallerySyncMessage.value = "启动后台扫描失败：${e.message}"
+            manualGallerySyncMessage.value = "扫描失败：${e.message}"
+        } finally {
+            manualGallerySyncInProgress.value = false
         }
     }
 
