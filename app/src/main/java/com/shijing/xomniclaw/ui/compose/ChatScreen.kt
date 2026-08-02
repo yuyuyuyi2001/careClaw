@@ -698,7 +698,6 @@ fun MessageItem(
     val isLong = parsedMedia.cleanedText.length > COLLAPSE_THRESHOLD
     var expanded by remember { mutableStateOf(false) }
     var showCopyHint by remember { mutableStateOf(false) }
-    var selectedMedia by remember { mutableStateOf<ChatMediaRef?>(null) }
 
     val alignment = if (message.isUser) Alignment.End else Alignment.Start
     val (backgroundColor, textColor) = messageColors(message)
@@ -795,7 +794,7 @@ fun MessageItem(
                         Spacer(modifier = Modifier.height(8.dp))
                         ChatMediaSection(
                             mediaRefs = parsedMedia.mediaRefs,
-                            onMediaClick = { selectedMedia = it }
+                            onMediaClick = { _ -> }
                         )
                     }
 
@@ -862,13 +861,6 @@ fun MessageItem(
                 modifier = Modifier.padding(start = 8.dp)
             )
         }
-    }
-
-    selectedMedia?.let { media ->
-        ChatMediaPreviewDialog(
-            media = media,
-            onDismiss = { selectedMedia = null }
-        )
     }
 }
 
@@ -981,74 +973,6 @@ private fun ChatVideoCard(
             )
         }
     }
-}
-
-@Composable
-private fun ChatMediaPreviewDialog(
-    media: ChatMediaRef,
-    onDismiss: () -> Unit
-) {
-    val bitmap = remember(media.normalizedPath) {
-        if (media.type == ChatMediaType.IMAGE) {
-            File(media.normalizedPath)
-                .takeIf { it.exists() }
-                ?.let { BitmapFactory.decodeFile(it.absolutePath) }
-        } else {
-            null
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("关闭")
-            }
-        },
-        text = {
-            when (media.type) {
-                ChatMediaType.IMAGE -> {
-                    if (bitmap != null) {
-                        Image(
-                            bitmap = bitmap.asImageBitmap(),
-                            contentDescription = "大图预览",
-                            modifier = Modifier.fillMaxWidth(),
-                            contentScale = ContentScale.Fit
-                        )
-                    } else {
-                        Text("图片不存在或无法读取：${media.normalizedPath}")
-                    }
-                }
-                ChatMediaType.VIDEO -> {
-                    val file = File(media.normalizedPath)
-                    if (file.exists()) {
-                        AndroidView(
-                            factory = { ctx ->
-                                VideoView(ctx).apply {
-                                    val controller = MediaController(ctx)
-                                    controller.setAnchorView(this)
-                                    setMediaController(controller)
-                                    setVideoPath(file.absolutePath)
-                                    setOnPreparedListener { player ->
-                                        player.isLooping = false
-                                        start()
-                                    }
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(240.dp)
-                        )
-                    } else {
-                        Text("视频不存在或无法读取：${media.normalizedPath}")
-                    }
-                }
-            }
-        },
-        title = {
-            Text(if (media.type == ChatMediaType.IMAGE) "图片预览" else "视频播放")
-        }
-    )
 }
 
 // ============================================================================
