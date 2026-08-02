@@ -59,13 +59,11 @@ class ModelConfigActivity : AppCompatActivity() {
         loadCurrentConfig()
         setupToolbar()
         buildProviderList()
-        setupSttProviderEntry()
-        setupVlmProviderEntry()
     }
 
     override fun onResume() {
         super.onResume()
-        // 从 STT 配置页返回时刷新主页面状态。
+        // 返回时刷新主页面状态。
         loadCurrentConfig()
     }
 
@@ -150,24 +148,6 @@ class ModelConfigActivity : AppCompatActivity() {
             "VLM：vlm/$model"
         } else {
             "VLM：未配置"
-        }
-    }
-
-    /**
-     * 在「选择 AI 服务商」主页面增加 STT Provider 入口。
-     */
-    private fun setupSttProviderEntry() {
-        binding.cardSttProvider.setOnClickListener {
-            startActivity(Intent(this, SttProviderConfigActivity::class.java))
-        }
-    }
-
-    /**
-     * 在「选择 AI 服务商」主页面增加 VLM Provider 入口。
-     */
-    private fun setupVlmProviderEntry() {
-        binding.cardVlmProvider.setOnClickListener {
-            startActivity(Intent(this, VlmProviderConfigActivity::class.java))
         }
     }
 

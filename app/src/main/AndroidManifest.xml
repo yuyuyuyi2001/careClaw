@@ -54,9 +54,7 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
@@ -95,13 +93,6 @@
             </intent-filter>
         </activity>
 
-        <!-- 主页 - 旧版XML (备用) -->
-        <activity
-            android:name="com.shijing.xomniclaw.ui.activity.MainActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
-
         <!-- 模型配置引导页（首次启动） -->
         <activity
             android:name="com.shijing.xomniclaw.ui.activity.ModelSetupActivity"
@@ -112,20 +103,6 @@
         <!-- 模型配置页面（两页式） -->
         <activity
             android:name="com.shijing.xomniclaw.ui.activity.ModelConfigActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
-
-        <!-- STT Provider 配置页面 -->
-        <activity
-            android:name="com.shijing.xomniclaw.ui.activity.SttProviderConfigActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
-
-        <!-- VLM Provider 配置页面 -->
-        <activity
-            android:name="com.shijing.xomniclaw.ui.activity.VlmProviderConfigActivity"
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
@@ -150,12 +127,6 @@
             android:exported="true"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
-
-        <!-- 结果Activity -->
-        <activity
-            android:name="com.shijing.xomniclaw.ui.activity.ResultActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
 
         <!-- 前台服务（保活） -->
         <service

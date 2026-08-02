@@ -781,13 +781,6 @@ class SkillsLoader(private val context: Context) {
             "gallery-memory" -> {
                 hasGalleryMemoryMaintenanceIntent(keywords)
             }
-            "capcut-theme-video" -> {
-                keywords.contains("主题") && (keywords.contains("一键成片") || keywords.contains("剪映") || keywords.contains("capcut")) ||
-                    keywords.contains("a_latest") ||
-                    keywords.contains("image-memories") ||
-                    keywords.contains("相册记忆") ||
-                    (keywords.contains("风景") && (keywords.contains("成片") || keywords.contains("剪映")))
-            }
             "taobao-search" -> {
                 // skill name 是英文 token，纯中文 query 走不到通用 nameTokens 兜底，
                 // 这里给一个中文等价的命中：提到「淘宝/taobao」+「搜/找/比价/购物/商品/价格」等其一。
@@ -850,32 +843,12 @@ class SkillsLoader(private val context: Context) {
             recommendedSkills.add("clipboard-to-shortcut")
         }
 
-        if (keywords.contains("定时") || keywords.contains("每天") ||
-            keywords.contains("每晚") || keywords.contains("每早") ||
-            keywords.contains("晚上") || keywords.contains("早上") ||
-            keywords.contains("中午") || keywords.contains("凌晨") ||
-            keywords.contains("闹钟") || keywords.contains("准时") ||
-            keywords.contains("按时") || keywords.contains("定点") ||
-            keywords.contains("提醒我打开") || keywords.contains("自动打开")) {
-            recommendedSkills.add("scheduled-automation")
-        }
-
         if (hasGalleryQaConsumptionIntent(keywords)) {
             recommendedSkills.add("gallery-qa")
         }
 
         if (hasGalleryMemoryMaintenanceIntent(keywords)) {
             recommendedSkills.add("gallery-memory")
-        }
-
-        if (keywords.contains("剪映") || keywords.contains("capcut") ||
-            keywords.contains("一键成片") || keywords.contains("jianying")) {
-            val themeIntent = keywords.contains("主题") || keywords.contains("风景") ||
-                keywords.contains("image-memories") || keywords.contains("相册记忆") ||
-                keywords.contains("a_latest")
-            if (themeIntent) {
-                recommendedSkills.add(0, "capcut-theme-video")
-            }
         }
 
         return recommendedSkills

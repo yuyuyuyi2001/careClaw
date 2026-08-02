@@ -27,7 +27,6 @@ import com.shijing.xomniclaw.accessibility.AccessibilityHealthMonitor
 import com.shijing.xomniclaw.util.GlobalExceptionHandler
 import com.shijing.xomniclaw.util.WakeLockManager
 import com.shijing.xomniclaw.data.model.TaskDataManager
-import com.shijing.xomniclaw.util.AppInfoScanner
 import com.tencent.mmkv.MMKV
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Dispatchers
@@ -67,10 +66,6 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
         // Gateway Server
 
         // Gateway Controller
-
-        // Message Queue Manager: fully aligned with OmniClaw's queue mechanism
-        // Supports five modes: interrupt, steer, followup, collect, queue
-        private val messageQueueManager = MessageQueueManager()
 
         // Accessibility Health Monitor
         private var healthMonitor: AccessibilityHealthMonitor? = null
@@ -219,15 +214,6 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
                 }
             }
         }
-
-        // Delayed scan and export app info (avoid blocking app startup)
-//        Handler(Looper.getMainLooper()).postDelayed({
-//            try {
-//                AppInfoScanner.scanAndExport(this)
-//            } catch (e: Exception) {
-//                Log.e(TAG, "扫描应用信息失败: ${e.message}", e)
-//            }
-//        }, 2000) // 2 second delay to ensure app is fully started
     }
 
     fun isAppInBackground(): Boolean {
