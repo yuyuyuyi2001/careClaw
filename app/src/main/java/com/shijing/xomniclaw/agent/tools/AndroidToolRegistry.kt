@@ -79,6 +79,9 @@ class AndroidToolRegistry(
         register(com.shijing.xomniclaw.agent.tools.selfcontrol.NavigationSkill(context))
         register(com.shijing.xomniclaw.agent.tools.selfcontrol.ServiceControlSkill(context))
 
+        // === Behavior teaching（行为录制 → SKILL.md 热加载）===
+        register(com.shijing.xomniclaw.agent.behavior.CaptureBehaviorSkill(context))
+
 
         Log.d(TAG, "✅ Registered ${tools.size} Android platform tools")
     }
