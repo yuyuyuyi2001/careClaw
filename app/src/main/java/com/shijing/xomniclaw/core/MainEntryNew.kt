@@ -126,11 +126,11 @@ object MainEntryNew {
     // Agent 最大迭代次数，用于浮动窗口进度显示
     private var agentMaxIterations: Int = 40
 
-    // Document sync completion state
+    // 文档同步完成状态
     private val _docSyncFinished = MutableStateFlow(false)
     val docSyncFinished = _docSyncFinished.asStateFlow()
 
-    // Test summary completion state
+    // 测试摘要完成状态
     private val _summaryFinished = MutableStateFlow(false)
     val summaryFinished = _summaryFinished.asStateFlow()
 
@@ -256,7 +256,7 @@ object MainEntryNew {
             val workspacePath = "/sdcard/.xomniclaw/workspace"
             val openClawCfg = configLoader.loadOmniClawConfig()
             val embeddingProviders = openClawCfg.resolveProviders()
-            // Try to find an OpenAI-compatible provider for embeddings
+            // 尝试找一个 OpenAI 兼容 Provider 用于 embedding
             val embeddingBaseUrl = embeddingProviders.values.firstOrNull()?.baseUrl ?: ""
             val embeddingApiKey = embeddingProviders.values.firstOrNull()?.apiKey ?: ""
             val memoryManager = com.shijing.xomniclaw.agent.memory.MemoryManager(
@@ -299,7 +299,7 @@ object MainEntryNew {
             val contextManager = com.shijing.xomniclaw.agent.context.ContextManager(llmProvider)
             Log.d(TAG, "✓ ContextManager initialized")
 
-            // Load maxIterations from config
+            // 从配置读取最大迭代次数
             val config = configLoader.loadOmniClawConfig()
             val maxIterations = config.agent.maxIterations
             agentMaxIterations = maxIterations
@@ -441,10 +441,10 @@ object MainEntryNew {
         mmkv.encode(MMKVKeys.GLOBAL_TOKEN_TOTAL.key, counter.totalTokens)
     }
 
-    // registerAllTools() removed
-    // Tools are now divided into:
-    // - ToolRegistry: Universal tools (read, write, exec, web_fetch)
-    // - AndroidToolRegistry: Android platform tools (tap, screenshot, open_app)
+    // registerAllTools() 已移除
+    // 工具现分为：
+    // - ToolRegistry: 通用工具（read, write, exec, web_fetch）
+    // - AndroidToolRegistry: Android 平台工具（tap, screenshot, open_app）
 
     /**
      * Run Agent with session management - Supports multi-turn conversations
@@ -783,10 +783,11 @@ object MainEntryNew {
                     embeddingBaseUrl = embeddingProviders.values.firstOrNull()?.baseUrl ?: "",
                     embeddingApiKey = embeddingProviders.values.firstOrNull()?.apiKey ?: ""
                 )
-                MemoryEvolutionManager(
+                val evolutionManager = MemoryEvolutionManager(
                     context = application,
                     memoryManager = memoryManager
-                ).recordAgentRun(
+                )
+                evolutionManager.recordAgentRun(
                     sessionId = sessionId,
                     userInput = userInput,
                     finalContent = finalContent,
