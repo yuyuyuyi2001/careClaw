@@ -73,6 +73,12 @@ class AndroidToolRegistry(
         register(LogSkill())                 // Log
         register(SystemSettingsSkill(context)) // System settings: Bluetooth, WiFi, Airplane mode, etc.
 
+        // === Self-Control tools（自我管理：查配置/日志、导航页面、控制悬浮窗）===
+        register(com.shijing.xomniclaw.agent.tools.selfcontrol.ConfigSkill(context))
+        register(com.shijing.xomniclaw.agent.tools.selfcontrol.LogQuerySkill(context))
+        register(com.shijing.xomniclaw.agent.tools.selfcontrol.NavigationSkill(context))
+        register(com.shijing.xomniclaw.agent.tools.selfcontrol.ServiceControlSkill(context))
+
 
         Log.d(TAG, "✅ Registered ${tools.size} Android platform tools")
     }
