@@ -160,9 +160,6 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
         MMKV.initialize(this)
         registerActivityLifecycleCallbacks(this)
 
-        // Pre-initialize Chaquopy Python runtime to avoid cold-start latency (~200-500ms)
-        initializePython()
-
         // Initialize file logging system
         initializeFileLogger()
 
@@ -264,25 +261,6 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
             Log.e(TAG, "获取 IP 地址失败", e)
         }
         return null
-    }
-
-    /**
-     * Test config system
-     */
-    /**
-     * Pre-initialize Chaquopy Python runtime on a background thread.
-     */
-    private fun initializePython() {
-        try {
-            if (!com.chaquo.python.Python.isStarted()) {
-                com.chaquo.python.Python.start(
-                    com.chaquo.python.android.AndroidPlatform(this)
-                )
-                Log.i(TAG, "✅ Chaquopy Python 运行时已初始化")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Chaquopy Python 初始化失败", e)
-        }
     }
 
     /**

@@ -1,7 +1,6 @@
 plugins {
     id 'com.android.application'
     id 'kotlin-android'
-    id 'com.chaquo.python'
     id 'com.google.android.gms.oss-licenses-plugin'
     id 'kotlin-parcelize'
 }
@@ -45,13 +44,6 @@ android {
 
         ndk {
             abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'
-        }
-
-        python {
-            buildPython "python"
-            pip {
-                // difflib, hashlib, json are stdlib - no extra deps needed
-            }
         }
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

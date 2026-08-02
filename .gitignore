@@ -14,3 +14,5 @@ captures/
 # 系统
 Thumbs.db
 .DS_Store
+# build logs
+build_*.log

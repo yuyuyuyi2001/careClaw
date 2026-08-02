@@ -473,8 +473,8 @@ Scope yourself to the user's request; on conflict pause and ask; respect stop/au
     /**
      * Keyword-based skill disambiguation. When the user query contains certain
      * keywords, return priority hints that override the LLM's default selection.
-     * This prevents generic skills (e.g. skill-creator) from shadowing
-     * specialised ones (e.g. clipboard-to-shortcut).
+     * This prevents generic skills from shadowing specialised ones
+     * (e.g. clipboard-to-shortcut).
      */
     private fun buildSkillPriorityHints(userGoal: String): List<String> {
         val q = userGoal.lowercase()
@@ -482,7 +482,7 @@ Scope yourself to the user's request; on conflict pause and ask; respect stop/au
 
         if (q.contains("剪切板") || q.contains("剪贴板") || q.contains("clipboard")) {
             val skillPath = resolveSkillLocation("clipboard-to-shortcut")
-            hints.add("- The user mentions **clipboard/剪切板** → you MUST use `clipboard-to-shortcut`, NOT `skill-creator`. Read `$skillPath` with read_file and follow it strictly. Do NOT improvise the SKILL.md format — the skill file contains the exact template and naming rules you must use.")
+            hints.add("- The user mentions **clipboard/剪切板** → you MUST use `clipboard-to-shortcut`. Read `$skillPath` with read_file and follow it strictly. Do NOT improvise the SKILL.md format — the skill file contains the exact template and naming rules you must use.")
         }
 
         // 淘宝有独立的 taobao-search skill（含 deep link、snapshot 提取规则、回复模板）。
