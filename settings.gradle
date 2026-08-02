@@ -1,0 +1,6 @@
+rootProject.name = "X-OmniClaw"
+include ':app'
+include ':extensions:feishu'
+include ':extensions:discord'
+include ':extensions:observer'
+include ':self-control'

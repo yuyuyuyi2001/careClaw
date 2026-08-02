@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="green">#388e3c</color>
+
+    <!-- Todos 相关颜色 -->
+    <color name="primary_color">#2196F3</color>
+    <color name="status_pending">#FFC107</color>
+    <color name="status_executing">#2196F3</color>
+    <color name="status_completed">#4CAF50</color>
+    <color name="status_failed">#F44336</color>
+    <color name="status_skipped">#9E9E9E</color>
+
+    <!-- MainActivity 状态颜色 -->
+    <color name="status_ok">#4CAF50</color>      <!-- 绿色 - 正常 -->
+    <color name="status_warning">#FFC107</color> <!-- 黄色 - 警告 -->
+    <color name="status_error">#F44336</color>   <!-- 红色 - 错误 -->
+    <color name="text_secondary">#666666</color> <!-- 次要文本 -->
+</resources>

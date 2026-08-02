@@ -1,0 +1,628 @@
+package com.shijing.xomniclaw.agent.session
+
+/**
+ * OmniClaw Source Reference:
+ * - ../xomniclaw/src/agents/(all)
+ *
+ * OmniClaw adaptation: persist and restore agent sessions on Android.
+ */
+
+
+import android.util.Log
+import com.shijing.xomniclaw.agent.memory.ContextCompressor
+import com.shijing.xomniclaw.agent.memory.TokenEstimator
+import com.shijing.xomniclaw.providers.LegacyMessage
+import com.shijing.xomniclaw.providers.LegacyToolCall
+import com.shijing.xomniclaw.providers.LegacyFunction
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.UUID
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.read
+import kotlin.concurrent.write
+
+/**
+ * Session Manager
+ * Aligned with OmniClaw session management
+ *
+ * Storage format (OmniClaw Protocol):
+ * - sessions.json: Metadata index {"agent:main:main": {"sessionId":"uuid", "updatedAt":1234567890, "sessionFile":"/path/to/uuid.jsonl", ...}}
+ * - {sessionId}.jsonl: Message history (JSONL, one event per line)
+ *
+ * Responsibilities:
+ * 1. Manage conversation history
+ * 2. Persist session data (JSONL format)
+ * 3. Auto context compression
+ * 4. Token budget management
+ * 5. Provide session create, get, save, clear functions
+ */
+class SessionManager(
+    private val workspace: File,
+    private val contextCompressor: ContextCompressor? = null
+) {
+    companion object {
+        private const val TAG = "SessionManager"
+        private const val SESSIONS_DIR = "sessions"
+        private const val SESSIONS_INDEX = "sessions.json"
+        private const val AUTO_PRUNE_DAYS = 30        // Auto clean sessions older than 30 days
+
+        @JvmStatic
+        internal fun ensureSessionFileParentExists(sessionFile: File) {
+            sessionFile.parentFile?.mkdirs()
+        }
+    }
+
+    private val gson: Gson = GsonBuilder().create()  // No pretty printing for JSONL
+    private val gsonPretty: Gson = GsonBuilder().setPrettyPrinting().create()  // For sessions.json index
+
+    private val sessionsDir: File = File(workspace, SESSIONS_DIR).apply {
+        if (!exists()) {
+            mkdirs()
+            Log.d(TAG, "Created sessions directory: $absolutePath")
+        }
+    }
+
+    private val indexFile: File = File(sessionsDir, SESSIONS_INDEX)
+
+    // In-memory cache
+    private val sessions = mutableMapOf<String, Session>()
+    private val sessionIndex = mutableMapOf<String, SessionMetadata>()
+
+    // Session write lock — prevents concurrent writes corrupting JSONL files
+    // Aligned with OmniClaw's acquireSessionWriteLock
+    private val sessionWriteLock = ReentrantReadWriteLock()
+
+    init {
+        loadIndex()
+    }
+
+    /**
+     * Get or create session
+     */
+    fun getOrCreate(sessionKey: String): Session {
+        return sessions.getOrPut(sessionKey) {
+            Log.d(TAG, "Creating new session: $sessionKey")
+            loadSession(sessionKey) ?: createNewSession(sessionKey)
+        }
+    }
+
+    /**
+     * Get session (return null if doesn't exist)
+     */
+    fun get(sessionKey: String): Session? {
+        return sessions[sessionKey] ?: loadSession(sessionKey)
+    }
+
+    /**
+     * Save session (with write lock — aligned with OmniClaw acquireSessionWriteLock)
+     */
+    fun save(session: Session) {
+        sessionWriteLock.write {
+            val nowMs = System.currentTimeMillis()
+            session.updatedAt = currentTimestamp()
+            sessions[session.key] = session
+
+            // Persist to JSONL file
+            try {
+                saveSessionMessages(session)
+
+                // Update index
+                val metadata = sessionIndex.getOrPut(session.key) {
+                    SessionMetadata(
+                        sessionId = session.sessionId,
+                        updatedAt = nowMs,
+                        sessionFile = getSessionJSONLFile(session.sessionId).absolutePath,
+                        compactionCount = session.compactionCount
+                    )
+                }
+                metadata.updatedAt = nowMs
+                metadata.compactionCount = session.compactionCount
+                saveIndex()
+
+                Log.d(TAG, "Session saved: ${session.key}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to save session: ${session.key}", e)
+            }
+        }
+    }
+
+    /**
+     * Clear session
+     *
+     * 必须从磁盘索引删除：若仅存在于索引/文件中、未载入内存缓存，
+     * 旧实现会因 sessions.remove 返回 null 而跳过删文件，重启后会话会「复活」。
+     */
+    fun clear(sessionKey: String) {
+        sessionWriteLock.write {
+            sessions.remove(sessionKey)
+            val metadata = sessionIndex.remove(sessionKey)
+            if (metadata != null) {
+                try {
+                    File(metadata.sessionFile).delete()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to delete session JSONL: ${metadata.sessionFile}", e)
+                }
+                saveIndex()
+                Log.d(TAG, "Session cleared from disk/index: $sessionKey")
+            } else {
+                Log.d(TAG, "Session clear: no index entry for $sessionKey")
+            }
+        }
+    }
+
+    /**
+     * Clear all sessions
+     */
+    fun clearAll() {
+        sessions.clear()
+        sessionIndex.clear()
+        sessionsDir.listFiles()?.forEach {
+            if (it.extension == "jsonl") {
+                it.delete()
+            }
+        }
+        indexFile.delete()
+        Log.d(TAG, "All sessions cleared")
+    }
+
+    /**
+     * Get all session keys (only return new format sessions)
+     */
+    fun getAllKeys(): List<String> {
+        loadIndex()
+        // Only return sessions from index (new format), ignore old .json files
+        return sessionIndex.keys.toList()
+    }
+
+    /**
+     * Check and auto compress session
+     *
+     * @param session Session
+     * @return Whether compression was performed
+     */
+    suspend fun compressIfNeeded(session: Session): Boolean = withContext(Dispatchers.IO) {
+        if (contextCompressor == null) {
+            return@withContext false
+        }
+
+        try {
+            // Check if compaction is needed
+            if (!contextCompressor.needsCompaction(session.messages)) {
+                return@withContext false
+            }
+
+            Log.d(TAG, "Auto-compressing session: ${session.key} (${session.messages.size} messages, ${session.getTokenCount()} tokens)")
+
+            // Perform compression
+            val compressedMessages = contextCompressor.compress(session.messages)
+
+            // Update session
+            session.messages.clear()
+            session.messages.addAll(compressedMessages)
+            session.markCompacted()
+
+            // Save session
+            save(session)
+
+            Log.d(TAG, "Session compressed: ${session.key} → ${session.messages.size} messages, ${session.getTokenCount()} tokens (compaction #${session.compactionCount})")
+
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to compress session: ${session.key}", e)
+            false
+        }
+    }
+
+    /**
+     * Auto clean old sessions
+     *
+     * @param days Clean sessions older than this many days
+     */
+    suspend fun pruneOldSessions(days: Int = AUTO_PRUNE_DAYS): Unit = withContext(Dispatchers.IO) {
+        try {
+            val cutoffTime = System.currentTimeMillis() - (days * 24 * 60 * 60 * 1000L)
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+
+            var prunedCount = 0
+
+            getAllKeys().forEach { key ->
+                val session = loadSession(key)
+                if (session != null) {
+                    try {
+                        val updatedDate = dateFormat.parse(session.updatedAt)
+                        if (updatedDate != null && updatedDate.time < cutoffTime) {
+                            clear(key)
+                            prunedCount++
+                            Log.d(TAG, "Pruned old session: $key (last updated: ${session.updatedAt})")
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to parse date for session: $key", e)
+                    }
+                }
+            }
+
+            if (prunedCount > 0) {
+                Log.d(TAG, "Pruned $prunedCount old sessions (older than $days days)")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to prune old sessions", e)
+        }
+    }
+
+    // ================ Private Helpers ================
+
+    /**
+     * Create new session
+     */
+    private fun createNewSession(sessionKey: String): Session {
+        val sessionId = UUID.randomUUID().toString()
+        val nowMs = System.currentTimeMillis()
+        val timestamp = currentTimestamp()
+
+        val session = Session(
+            key = sessionKey,
+            sessionId = sessionId,
+            messages = mutableListOf(),
+            createdAt = timestamp,
+            updatedAt = timestamp
+        )
+
+        // 写入 JSONL header
+        val jsonlFile = getSessionJSONLFile(sessionId)
+        ensureSessionFileParentExists(jsonlFile)
+        FileOutputStream(jsonlFile, false).use { out ->
+            val header = mapOf(
+                "type" to "session",
+                "version" to 3,
+                "id" to sessionId,
+                "timestamp" to timestamp,
+                "cwd" to workspace.absolutePath
+            )
+            out.write((gson.toJson(header) + "\n").toByteArray())
+        }
+
+        // Update index
+        sessionIndex[sessionKey] = SessionMetadata(
+            sessionId = sessionId,
+            updatedAt = nowMs,
+            sessionFile = jsonlFile.absolutePath,
+            compactionCount = 0
+        )
+        saveIndex()
+
+        return session
+    }
+
+    /**
+     * Load index file
+     */
+    private fun loadIndex() {
+        if (!indexFile.exists()) {
+            return
+        }
+
+        try {
+            val json = indexFile.readText()
+            val jsonObject = JsonParser.parseString(json).asJsonObject
+
+            sessionIndex.clear()
+            for ((key, value) in jsonObject.entrySet()) {
+                val obj = value.asJsonObject
+                sessionIndex[key] = SessionMetadata(
+                    sessionId = obj.get("sessionId").asString,
+                    updatedAt = obj.get("updatedAt").asLong,
+                    sessionFile = obj.get("sessionFile").asString,
+                    compactionCount = obj.get("compactionCount")?.asInt ?: 0
+                )
+            }
+
+            Log.d(TAG, "Index loaded: ${sessionIndex.size} sessions")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load index", e)
+        }
+    }
+
+    /**
+     * Save index file
+     */
+    private fun saveIndex() {
+        try {
+            val jsonObject = JsonObject()
+            for ((key, metadata) in sessionIndex) {
+                val obj = JsonObject()
+                obj.addProperty("sessionId", metadata.sessionId)
+                obj.addProperty("updatedAt", metadata.updatedAt)
+                obj.addProperty("sessionFile", metadata.sessionFile)
+                obj.addProperty("compactionCount", metadata.compactionCount)
+                jsonObject.add(key, obj)
+            }
+
+            Log.d(TAG, "💾 Saving index to: ${indexFile.absolutePath}")
+            indexFile.writeText(gsonPretty.toJson(jsonObject))
+            Log.d(TAG, "✅ Index saved: ${sessionIndex.size} sessions")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Failed to save index: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Load session (with JSONL repair — aligned with OmniClaw repairSessionFileIfNeeded)
+     */
+    private fun loadSession(sessionKey: String): Session? {
+        val metadata = sessionIndex[sessionKey] ?: return null
+        val jsonlFile = getSessionJSONLFile(metadata.sessionId)
+
+        if (!jsonlFile.exists()) {
+            Log.w(TAG, "Session JSONL file not found: ${metadata.sessionId}")
+            return null
+        }
+
+        return try {
+            val messages = mutableListOf<LegacyMessage>()
+            var createdAt = currentTimestamp()
+            var updatedAt = currentTimestamp()
+            var droppedLines = 0
+
+            jsonlFile.forEachLine { line ->
+                if (line.isBlank()) return@forEachLine
+
+                val event = try {
+                    JsonParser.parseString(line).asJsonObject
+                } catch (e: Exception) {
+                    droppedLines++
+                    Log.w(TAG, "Dropped malformed JSONL line: ${line.take(80)}")
+                    return@forEachLine
+                }
+                val type = event.get("type")?.asString ?: return@forEachLine
+
+                when (type) {
+                    "session" -> {
+                        createdAt = event.get("timestamp")?.asString ?: createdAt
+                    }
+                    "message" -> {
+                        val role = event.get("role")?.asString ?: return@forEachLine
+                        val content = event.get("content")?.asString ?: ""
+                        val name = event.get("name")?.asString
+                        val toolCallId = event.get("tool_call_id")?.asString
+
+                        // Parse tool_calls array (for assistant messages)
+                        val toolCalls = if (event.has("tool_calls") && !event.get("tool_calls").isJsonNull) {
+                            try {
+                                val arr = event.getAsJsonArray("tool_calls")
+                                arr.map { tc ->
+                                    val obj = tc.asJsonObject
+                                    val fnObj = obj.getAsJsonObject("function")
+                                    LegacyToolCall(
+                                        id = obj.get("id")?.asString ?: "",
+                                        type = obj.get("type")?.asString ?: "function",
+                                        function = LegacyFunction(
+                                            name = fnObj.get("name")?.asString ?: "",
+                                            arguments = fnObj.get("arguments")?.asString ?: "{}"
+                                        )
+                                    )
+                                }
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Failed to parse tool_calls: ${e.message}")
+                                null
+                            }
+                        } else null
+
+                        messages.add(LegacyMessage(
+                            role = role,
+                            content = content,
+                            name = name,
+                            toolCallId = toolCallId,
+                            toolCalls = toolCalls
+                        ))
+                    }
+                }
+            }
+
+            // Repair report (aligned with OmniClaw session-file-repair.ts)
+            if (droppedLines > 0) {
+                Log.w(TAG, "⚠️ Session file repaired: dropped $droppedLines malformed lines (${jsonlFile.name})")
+            }
+
+            val session = Session(
+                key = sessionKey,
+                sessionId = metadata.sessionId,
+                messages = messages,
+                createdAt = createdAt,
+                updatedAt = updatedAt,
+                compactionCount = metadata.compactionCount
+            )
+
+            Log.d(TAG, "Session loaded: $sessionKey (${messages.size} messages)")
+            session
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load session: $sessionKey", e)
+            null
+        }
+    }
+
+    /**
+     * Save session messages to JSONL — records full tool blocks
+     * Aligned with OmniClaw's session JSONL format:
+     * - assistant messages include tool_calls array
+     * - tool messages include tool_call_id and name
+     * - thinking content preserved as metadata
+     */
+    private fun saveSessionMessages(session: Session) {
+        val jsonlFile = getSessionJSONLFile(session.sessionId)
+        ensureSessionFileParentExists(jsonlFile)
+        val tmpFile = File(jsonlFile.parentFile, "${jsonlFile.name}.tmp-${System.currentTimeMillis()}")
+
+        try {
+            Log.d(TAG, "💾 Saving session messages to: ${jsonlFile.absolutePath}")
+
+            // Write to temp file first, then atomic rename (prevents corruption)
+            FileOutputStream(tmpFile, false).use { out ->
+                // 1. Session header
+                val header = mapOf(
+                    "type" to "session",
+                    "version" to 3,
+                    "id" to session.sessionId,
+                    "timestamp" to session.createdAt,
+                    "cwd" to workspace.absolutePath
+                )
+                out.write((gson.toJson(header) + "\n").toByteArray())
+
+                // 2. Messages — full tool block recording
+                for (msg in session.messages) {
+                    val event = JsonObject()
+                    event.addProperty("type", "message")
+                    event.addProperty("id", UUID.randomUUID().toString())
+                    event.addProperty("role", msg.role)
+
+                    // Content (can be string or complex)
+                    when (val content = msg.content) {
+                        is String -> event.addProperty("content", content)
+                        else -> event.addProperty("content", content?.toString() ?: "")
+                    }
+
+                    // Tool call ID (for tool role messages)
+                    msg.toolCallId?.let { event.addProperty("tool_call_id", it) }
+
+                    // Tool name (for tool role messages)
+                    msg.name?.let { event.addProperty("name", it) }
+
+                    // Tool calls array (for assistant messages with tool invocations)
+                    msg.toolCalls?.let { toolCalls ->
+                        val tcArray = JsonArray()
+                        for (tc in toolCalls) {
+                            val tcObj = JsonObject()
+                            tcObj.addProperty("id", tc.id)
+                            tcObj.addProperty("type", tc.type)
+                            val fnObj = JsonObject()
+                            fnObj.addProperty("name", tc.function.name)
+                            fnObj.addProperty("arguments", tc.function.arguments)
+                            tcObj.add("function", fnObj)
+                            tcArray.add(tcObj)
+                        }
+                        event.add("tool_calls", tcArray)
+                    }
+
+                    event.addProperty("timestamp", currentTimestamp())
+                    out.write((gson.toJson(event) + "\n").toByteArray())
+                }
+            }
+
+            // Atomic rename
+            if (jsonlFile.exists()) {
+                jsonlFile.delete()
+            }
+            tmpFile.renameTo(jsonlFile)
+
+            Log.d(TAG, "✅ Session messages saved: ${session.messages.size} messages to ${jsonlFile.name}")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Failed to save session messages: ${e.message}", e)
+            // Clean up temp file on failure
+            tmpFile.delete()
+        }
+    }
+
+    private fun getSessionJSONLFile(sessionId: String): File {
+        return File(sessionsDir, "$sessionId.jsonl")
+    }
+
+    private fun currentTimestamp(): String {
+        return SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+            .format(Date())
+    }
+}
+
+/**
+ * Session - Session data
+ */
+data class Session(
+    val key: String,
+    val sessionId: String,                     // UUID (aligned with OmniClaw)
+    var messages: MutableList<LegacyMessage>,
+    var createdAt: String,
+    var updatedAt: String,
+    var metadata: MutableMap<String, Any?> = mutableMapOf(),
+    var compactionCount: Int = 0,              // Compaction count
+    var totalTokens: Int = 0,                  // Total token count
+    var totalTokensFresh: Boolean = false      // Whether token data is fresh
+) {
+    /**
+     * Add message
+     */
+    fun addMessage(message: LegacyMessage) {
+        messages.add(message)
+        totalTokensFresh = false  // Mark token count as stale
+    }
+
+    /**
+     * Get recent N messages
+     */
+    fun getRecentMessages(count: Int): List<LegacyMessage> {
+        return if (messages.size <= count) {
+            messages.toList()
+        } else {
+            messages.takeLast(count)
+        }
+    }
+
+    /**
+     * Clear messages
+     */
+    fun clearMessages() {
+        messages.clear()
+        totalTokens = 0
+        totalTokensFresh = true
+    }
+
+    /**
+     * Get message count
+     */
+    fun messageCount(): Int {
+        return messages.size
+    }
+
+    /**
+     * Update token count
+     */
+    fun updateTokenCount() {
+        totalTokens = TokenEstimator.estimateMessagesTokens(messages)
+        totalTokensFresh = true
+    }
+
+    /**
+     * Get token count (recalculate if not fresh)
+     */
+    fun getTokenCount(): Int {
+        if (!totalTokensFresh) {
+            updateTokenCount()
+        }
+        return totalTokens
+    }
+
+    /**
+     * Mark as compacted
+     */
+    fun markCompacted() {
+        compactionCount++
+        totalTokensFresh = false
+    }
+}
+
+/**
+ * SessionMetadata - Session metadata (aligned with OmniClaw sessions.json)
+ */
+data class SessionMetadata(
+    val sessionId: String,
+    var updatedAt: Long,
+    val sessionFile: String,
+    var compactionCount: Int = 0
+)

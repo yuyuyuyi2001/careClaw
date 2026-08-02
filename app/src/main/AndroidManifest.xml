@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:installLocation="internalOnly">
+    <!-- 正式版本 - 生产环境使用，使用现代权限管理 -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" /> <!-- 基础权限 -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" /> <!-- 存储权限 -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_INTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+
+    <!-- 服务权限 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- 现代化权限管理 - 使用用户授权和无障碍服务 -->
+    <uses-permission
+        android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission
+        android:name="android.permission.BIND_DEVICE_ADMIN"
+        tools:ignore="ProtectedPermissions" /> <!-- 设备管理权限 (需要用户手动设置为设备管理员) -->
+    <uses-permission
+        android:name="android.permission.BIND_DEVICE_ADMIN"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"
+        tools:ignore="RequestInstallPackagesPolicy" />
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <uses-permission android:name="android.permission.INSTALL_PACKAGES"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.DELETE_PACKAGES"
+        tools:ignore="ProtectedPermissions" />
+
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Queries for specific apps can be added here if needed -->
+    <queries>
+        <!-- Example: <package android:name="com.android.settings" /> -->
+        <package android:name="com.shijing.xomniclaw" />
+    </queries>
+
+    <application
+        android:name="com.shijing.xomniclaw.core.MyApplication"
+        android:allowBackup="false"
+        android:banner="@drawable/banner"
+        android:extractNativeLibs="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:requestLegacyExternalStorage="true"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.PhoneForClaw">
+        <!-- 主页 - Compose版本 -->
+        <activity
+            android:name="com.shijing.xomniclaw.ui.activity.MainActivityCompose"
+            android:exported="true"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 主页 - 旧版XML (备用) -->
+        <activity
+            android:name="com.shijing.xomniclaw.ui.activity.MainActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
+
+        <!-- 模型配置引导页（首次启动） -->
+        <activity
+            android:name="com.shijing.xomniclaw.ui.activity.ModelSetupActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
+
+        <!-- 模型配置页面（两页式） -->
+        <activity
+            android:name="com.shijing.xomniclaw.ui.activity.ModelConfigActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
+
+        <!-- STT Provider 配置页面 -->
+        <activity
+            android:name="com.shijing.xomniclaw.ui.activity.SttProviderConfigActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
+
+        <!-- VLM Provider 配置页面 -->
+        <activity
+            android:name="com.shijing.xomniclaw.ui.activity.VlmProviderConfigActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
+
+        <!-- 配置页面 -->
+        <activity
+            android:name="com.shijing.xomniclaw.ui.activity.ConfigActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
+
+        <!-- Skills 管理页面 -->
+        <activity
+            android:name="com.shijing.xomniclaw.ui.activity.SkillsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
+
+        <!-- 权限管理页面 -->
+        <activity
+            android:name="com.shijing.xomniclaw.ui.activity.PermissionsActivity"
+            android:exported="true"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
+
+        <!-- Channel 列表页面 -->
+        <activity
+            android:name="com.shijing.xomniclaw.ui.activity.ChannelListActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
+
+        <!-- Feishu Channel 配置页面 -->
+        <activity
+            android:name="com.shijing.xomniclaw.ui.activity.FeishuChannelActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
+
+        <!-- Discord Channel 配置页面 -->
+        <activity
+            android:name="com.shijing.xomniclaw.ui.activity.DiscordChannelActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
+
+        <!-- 结果Activity -->
+        <activity
+            android:name="com.shijing.xomniclaw.ui.activity.ResultActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <!-- 前台服务（保活） -->
+        <service
+            android:name="com.shijing.xomniclaw.core.ForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <!-- 定时任务执行前台服务（降低后台触发后实际执行延迟） -->
+        <service
+            android:name="com.shijing.xomniclaw.scheduler.ScheduledTaskExecutionService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <!-- 相册记忆手动扫描前台服务（支持切后台后继续执行并展示进度） -->
+        <service
+            android:name="com.shijing.xomniclaw.agent.memory.gallery.GalleryMemorySyncForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- 观察能力(UI Tree + Screenshot)已移至独立模块 extensions/observer -->
+
+        <!-- 定时任务亮屏页（短生命周期，负责在息屏/锁屏场景下辅助拉起执行环境） -->
+        <activity
+            android:name="com.shijing.xomniclaw.scheduler.ScheduledTaskWakeActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:finishOnTaskLaunch="true"
+            android:launchMode="singleInstance"
+            android:noHistory="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <service
+            android:name="com.shijing.xomniclaw.service.WebService"
+            android:enabled="true"
+            android:exported="true" /> <!-- 文件提供者 - 系统级权限 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/provider_paths" />
+        </provider>
+
+        <!-- APK安装结果广播接收器 -->
+        <receiver
+            android:name="com.shijing.xomniclaw.util.InstallManager$InstallResultBroadcastReceiver"
+            android:enabled="true"
+            android:exported="true"
+            tools:ignore="Instantiatable" />
+        <!-- Agent消息广播接收器 -->
+        <receiver
+            android:name="com.shijing.xomniclaw.core.AgentMessageReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.shijing.xomniclaw.ACTION_EXECUTE_AGENT" />
+            </intent-filter>
+        </receiver>
+        <!-- 定时任务闹钟广播 -->
+        <receiver
+            android:name="com.shijing.xomniclaw.scheduler.ScheduledTaskReceiver"
+            android:enabled="true"
+            android:exported="false" />
+        <!-- 开机后恢复定时任务 -->
+        <receiver
+            android:name="com.shijing.xomniclaw.scheduler.ScheduledTaskBootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <!-- Chat消息广播接收器 (用于ADB测试) -->
+        <receiver
+            android:name="com.shijing.xomniclaw.util.ChatBroadcastReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="PHONE_FORCLAW_SEND_MESSAGE" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>

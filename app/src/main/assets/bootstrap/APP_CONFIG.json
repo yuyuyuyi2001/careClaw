@@ -1,0 +1,31 @@
+{
+  "appPackages": {
+    "小红书": "com.xingin.xhs",
+    "微信": "com.tencent.mm",
+    "抖音": "com.ss.android.ugc.aweme",
+    "淘宝": "com.taobao.taobao",
+    "支付宝": "com.eg.android.AlipayGphone",
+    "设置": "com.android.settings",
+    "相机": "com.android.camera",
+    "浏览器": "com.heytap.browser",
+    "软件商店": "com.heytap.market",
+    "应用商店": "com.heytap.market",
+    "OPPO软件商店": "com.heytap.market",
+    "天气": "com.coloros.weather2",
+    "天气预报": "com.coloros.weather2",
+    "OPPO天气": "com.coloros.weather2",
+    "电话": "com.android.dialer",
+    "短信": "com.android.mms",
+    "地图": "com.autonavi.minimap",
+    "高德": "com.autonavi.minimap",
+    "百度": "com.baidu.searchbox",
+    "京东": "com.jingdong.app.mall",
+    "美团": "com.sankuai.meituan",
+    "哔哩哔哩": "tv.danmaku.bili",
+    "b站": "tv.danmaku.bili",
+    "网易云": "com.netease.cloudmusic",
+    "qq": "com.tencent.mobileqq",
+    "钉钉": "com.alibaba.android.rimet",
+    "飞书": "com.ss.android.lark"
+  }
+}

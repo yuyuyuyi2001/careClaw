@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/card_companion_root"
+    android:layout_width="196dp"
+    android:layout_height="72dp"
+    app:cardBackgroundColor="#CC111111"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="4dp">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipChildren="false">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="10dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="18dp"
+            android:paddingBottom="8dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:gravity="center_vertical"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tv_companion_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="按住说话"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_companion_message"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:ellipsize="end"
+                    android:maxLines="6"
+                    android:textColor="#CCFFFFFF"
+                    android:textSize="11sp"
+                    android:visibility="invisible" />
+            </LinearLayout>
+
+            <ImageButton
+                android:id="@+id/btn_companion_voice"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="按住语音"
+                android:minWidth="40dp"
+                android:minHeight="40dp"
+                android:padding="8dp"
+                android:scaleType="centerInside"
+                android:stateListAnimator="@null"
+                android:src="@android:drawable/ic_btn_speak_now" />
+
+            <ImageButton
+                android:id="@+id/btn_companion_stop"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="停止替身"
+                android:minWidth="40dp"
+                android:minHeight="40dp"
+                android:padding="8dp"
+                android:scaleType="centerInside"
+                android:stateListAnimator="@null"
+                android:src="@android:drawable/ic_menu_close_clear_cancel" />
+        </LinearLayout>
+
+        <!-- 右下角拖拽以调整浮窗大小（与拖动手势分离，逻辑见 ScreenCompanionFloatWindow） -->
+        <com.shijing.xomniclaw.ui.floatwindow.CompanionResizeHandleView
+            android:id="@+id/view_companion_resize_handle"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="2dp"
+            android:layout_marginBottom="2dp"
+            android:contentDescription="@string/companion_float_resize_handle_desc" />
+
+    </FrameLayout>
+</androidx.cardview.widget.CardView>

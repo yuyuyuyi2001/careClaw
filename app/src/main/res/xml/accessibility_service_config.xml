@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 
+    无障碍服务配置文件
+    该配置定义了自动化测试工具如何与Android系统的无障碍服务框架交互，
+    以获取页面的完整View Tree信息并执行相关操作。
+    
+    accessibilityEventTypes: 监听的无障碍事件类型，typeAllMask表示监听所有事件类型
+    accessibilityFeedbackType: 无障碍反馈类型，feedbackGeneric表示通用反馈
+    notificationTimeout: 事件通知超时时间，单位为毫秒
+    canRequestTouchExplorationMode: 是否可以请求触摸探索模式
+    canPerformGestures: 是否可以执行手势操作
+    canRetrieveWindowContent: 是否可以获取窗口内容，对于获取View Tree信息至关重要
+    canRequestEnhancedWebAccessibility: 是否可以请求增强的网页可访问性支持
+    canRequestFilterKeyEvents: 是否可以过滤按键事件
+    accessibilityFlags: 无障碍服务标志位，用于控制服务的行为特性
+        - flagRetrieveInteractiveWindows: 获取交互式窗口内容
+        - flagIncludeNotImportantViews: 包含不重要的视图(目前没有使用)
+        - flagRequestEnhancedWebAccessibility: 请求增强的网页可访问性
+        - flagReportViewIds: 报告视图ID
+        - flagRequestFilterKeyEvents: 请求过滤按键事件
+    settingsActivity: 设置Activity的类名
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeAllMask"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:notificationTimeout="100"
+    android:canRequestTouchExplorationMode="true"
+    android:canPerformGestures="true"
+    android:canRetrieveWindowContent="true"
+    android:canRequestEnhancedWebAccessibility="true"
+    android:canRequestFilterKeyEvents="true"
+    android:accessibilityFlags="flagRetrieveInteractiveWindows|flagRequestEnhancedWebAccessibility|flagReportViewIds|flagRequestFilterKeyEvents"
+    android:settingsActivity="com.example.accessibilitytool.SettingsActivity" />

@@ -1,0 +1,307 @@
+plugins {
+    id 'com.android.application'
+    id 'kotlin-android'
+    id 'com.chaquo.python'
+    id 'com.google.android.gms.oss-licenses-plugin'
+    id 'kotlin-parcelize'
+}
+
+// 获取打包时间，精确到小时
+def buildTime = new Date().format("yyyyMMddHH", TimeZone.getTimeZone("Asia/Shanghai"))
+
+android {
+    signingConfigs {
+        debug {
+            // Debug和Release使用相同签名 (从上级目录加载)
+            keyAlias 'android'
+            keyPassword 'android'
+            storeFile project.rootProject.file('../keystore.jks')
+            storePassword 'android'
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+            enableV4Signing true
+        }
+        release {
+            // Release使用与Debug相同的签名 (从上级目录加载)
+            keyAlias 'android'
+            keyPassword 'android'
+            storeFile project.rootProject.file('../keystore.jks')
+            storePassword 'android'
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+            enableV4Signing true
+        }
+    }
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.shijing.xomniclaw"
+        minSdk 26
+        targetSdk 34
+        versionCode 19
+        versionName "1.0.19"
+
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'
+        }
+
+        python {
+            buildPython "python"
+            pip {
+                // difflib, hashlib, json are stdlib - no extra deps needed
+            }
+        }
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        // 启用 multiDex for test APK
+        multiDexEnabled true
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            shrinkResources false
+            // 完全关闭混淆和压缩 - 不使用proguardFiles
+            buildConfigField 'Boolean', 'ANTI_PIRACY', 'false'
+
+            // Release版本配置标记
+            buildConfigField 'Boolean', 'IS_SYSTEM_APP', 'true'
+            buildConfigField 'String', 'BUILD_VARIANT', '"release"'
+            buildConfigField 'Boolean', 'SKIP_PERMISSION_REQUEST', 'false'  // Release版本正常请求权限
+            
+            // 使用release版本的AndroidManifest（具有systemuid）
+            manifestPlaceholders = [
+                useSystemUid: "true",
+                appName: "@string/app_name",
+                buildType: "release"
+            ]
+        }
+
+        debug {
+            minifyEnabled false
+            shrinkResources false
+            signingConfig signingConfigs.debug
+            buildConfigField 'Boolean', 'ANTI_PIRACY', DEBUG_ANTIPIRACY
+
+            // Debug版本配置标记
+            buildConfigField 'Boolean', 'IS_SYSTEM_APP', 'false'
+            buildConfigField 'String', 'BUILD_VARIANT', '"debug"'
+            buildConfigField 'Boolean', 'SKIP_PERMISSION_REQUEST', 'true'  // Debug版本跳过权限请求页面
+
+            // 使用debug版本的AndroidManifest（不使用systemuid）
+            manifestPlaceholders = [
+                useSystemUid: "false",
+                appName: "@string/app_name",
+                buildType: "debug"
+            ]
+            // 移除 applicationIdSuffix，debug 和 release 使用相同包名
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+        resources {
+            excludes += [
+                'META-INF/DEPENDENCIES',
+                'META-INF/LICENSE',
+                'META-INF/LICENSE.txt',
+                'META-INF/LICENSE.md',
+                'META-INF/LICENSE-notice.md',
+                'META-INF/NOTICE',
+                'META-INF/NOTICE.txt',
+                'META-INF/NOTICE.md',
+                'META-INF/ASL2.0',
+                'META-INF/*.kotlin_module',
+                'META-INF/versions/9/OSGI-INF/MANIFEST.MF'
+            ]
+        }
+    }
+
+    buildFeatures {
+        viewBinding true
+        compose true
+        aidl = true
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.4.6"  // 匹配 Kotlin 1.8.20
+    }
+
+    namespace 'com.shijing.xomniclaw'
+
+    // 配置 APK 输出路径到根目录的 releases/
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            def outputFile = output.outputFile
+            if (outputFile != null && outputFile.name.endsWith('.apk')) {
+                // 生成文件名: X-OmniClaw-v1.0.0-release.apk
+                def fileName = "X-OmniClaw-v${defaultConfig.versionName}-${variant.buildType.name}.apk"
+
+                // 输出到项目根目录的 releases/
+                def releasesDir = project.rootProject.file("releases")
+                releasesDir.mkdirs()
+
+                // 设置输出文件
+                outputFileName = fileName
+
+                // 复制到 releases 目录
+                variant.assemble.doLast {
+                    copy {
+                        from output.outputFile
+                        into releasesDir
+                        rename { fileName }
+                    }
+                    println "✅ APK copied to: ${releasesDir}/${fileName}"
+                }
+            }
+        }
+    }
+}
+
+// 解决Protobuf版本冲突: 飞书SDK使用protobuf-java 3.25.5, 测试框架使用protobuf-lite 3.0.1
+configurations.all {
+    resolutionStrategy {
+        // 强制所有模块使用完整版protobuf-java
+        force 'com.google.protobuf:protobuf-java:3.25.5'
+    }
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3'
+    // 本地 YOLO ONNX 推理依赖：用于 snapshot 时做屏幕控件检测。
+    implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.17.3'
+    implementation 'com.google.mlkit:text-recognition-chinese:16.0.1'
+//    implementation "org.jetbrains.kotlinx:kotlinx-parcelize-runtime:$kotlin_version"
+    implementation 'androidx.core:core-ktx:1.10.1'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.preference:preference-ktx:1.2.0'
+    implementation 'androidx.fragment:fragment-ktx:1.6.0'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.1'
+    implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.6.1'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.1'
+    implementation 'com.squareup.okhttp3:okhttp:4.9.1'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.9.1'
+    implementation 'com.squareup.okhttp3:okhttp-sse:4.9.1'
+    implementation 'com.github.javiersantos:PiracyChecker:1.2.8'
+    implementation 'com.github.bumptech.glide:glide:4.12.0'
+    annotationProcessor 'com.github.bumptech.glide:compiler:4.12.0'
+    implementation 'com.google.android.material:material:1.9.0'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+    implementation 'com.google.android.gms:play-services-oss-licenses:17.0.1'
+    implementation "com.squareup.retrofit2:retrofit:2.6.0"
+    implementation "com.squareup.retrofit2:converter-gson:2.4.0"
+    implementation 'com.jakewharton.retrofit:retrofit2-kotlin-coroutines-adapter:0.9.2'
+    implementation 'org.nanohttpd:nanohttpd:2.3.1'
+    implementation 'org.nanohttpd:nanohttpd-websocket:2.3.1'
+    implementation 'io.noties.markwon:core:4.6.2'
+    implementation 'com.squareup.retrofit2:converter-scalars:2.9.0'
+    implementation 'com.tencent:mmkv-static:1.3.1'
+
+    // ========== WorkManager (定时任务) ==========
+    implementation 'androidx.work:work-runtime-ktx:2.8.1'
+
+    // ========== CameraX (摄像头推流) ==========
+    def camerax_version = "1.3.1"
+    implementation "androidx.camera:camera-core:${camerax_version}"
+    implementation "androidx.camera:camera-camera2:${camerax_version}"
+    implementation "androidx.camera:camera-lifecycle:${camerax_version}"
+    implementation "androidx.camera:camera-view:${camerax_version}"
+
+    // ========== EasyFloat 悬浮窗 ==========
+    implementation 'com.github.princekin-f:EasyFloat:2.0.4'
+
+    // ========== Extensions ==========
+    implementation project(':extensions:feishu')
+    implementation project(':extensions:discord')
+    implementation project(':extensions:observer')
+
+    // ========== Self-Control Module ==========
+    implementation project(':self-control')
+
+    // ========== Jetpack Compose 依赖 (匹配 Kotlin 1.8.20) ==========
+    def compose_version = "1.4.3"
+    implementation "androidx.compose.ui:ui:$compose_version"
+    implementation "androidx.compose.material3:material3:1.1.0"
+    implementation "androidx.compose.ui:ui-tooling-preview:$compose_version"
+    implementation "androidx.activity:activity-compose:1.7.2"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1"
+    implementation "androidx.compose.material:material-icons-extended:$compose_version"
+    implementation "androidx.compose.foundation:foundation:$compose_version"
+
+    debugImplementation "androidx.compose.ui:ui-tooling:$compose_version"
+    debugImplementation "androidx.compose.ui:ui-test-manifest:$compose_version"
+
+    // Feishu Official SDK (needed for direct testing)
+    // 注意:飞书SDK内部包含旧版protobuf,会导致测试环境冲突
+    // 测试时会通过configurations排除此依赖
+    implementation 'com.larksuite.oapi:oapi-sdk:2.4.4'
+
+    // MultiDex support
+    implementation 'androidx.multidex:multidex:2.0.1'
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.multidex:multidex:2.0.1'
+
+    // ========== Android UI 测试依赖 ==========
+    // Espresso 核心
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-intents:3.5.1'
+    // 排除protobuf-lite以避免与飞书SDK的protobuf-java冲突
+    androidTestImplementation('androidx.test.espresso:espresso-contrib:3.5.1') {
+        exclude group: 'com.google.protobuf', module: 'protobuf-lite'
+    }
+    androidTestImplementation 'androidx.test.espresso:espresso-idling-resource:3.5.1'
+
+    // AndroidX Test
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test:runner:1.5.2'
+    androidTestImplementation 'androidx.test:rules:1.5.0'
+    androidTestImplementation 'androidx.test:core:1.5.0'
+    androidTestImplementation 'androidx.test:core-ktx:1.5.0'
+
+    // UI Automator (用于跨应用测试)
+    androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.2.0'
+
+    // Compose UI 测试
+    androidTestImplementation "androidx.compose.ui:ui-test-junit4:$compose_version"
+    debugImplementation "androidx.compose.ui:ui-test-manifest:$compose_version"
+
+    // MockK for Android
+    androidTestImplementation "io.mockk:mockk-android:1.13.5"
+
+    // Kotlin 协程测试 (Android)
+    androidTestImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3"
+
+    // Fragment 测试
+    debugImplementation 'androidx.fragment:fragment-testing:1.6.0'
+}
+
+// 测试时排除飞书SDK以避免protobuf冲突
+configurations.all {
+    resolutionStrategy {
+        // 在androidTest中排除飞书SDK
+        if (name.contains('AndroidTest')) {
+            exclude group: 'com.larksuite.oapi', module: 'oapi-sdk'
+        }
+    }
+}

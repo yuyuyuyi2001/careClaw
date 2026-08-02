@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App基本信息 -->
+    <string name="app_name">X-OmniClaw</string>
+
+    <!-- 屏内替身浮窗 -->
+    <string name="companion_float_resize_handle_desc">拖拽调整替身条大小</string>
+
+    <!-- Shell命令相关 -->
+    <string name="command_hint">Shell 命令</string>
+    <string name="command_hint_waiting">等待连接…</string>
+
+    <!-- 通用操作 -->
+    <string name="bookmarks">书签</string>
+    <string name="last_command">上次命令</string>
+    <string name="help">帮助</string>
+    <string name="more">更多</string>
+    <string name="share">分享</string>
+    <string name="clear">清空屏幕</string>
+    <string name="add">添加</string>
+    <string name="delete">删除</string>
+    <string name="edit">编辑</string>
+    <string name="cancel">取消</string>
+    <string name="done">完成</string>
+    <string name="pair">配对</string>
+    <string name="skip">跳过</string>
+    <string name="dismiss">关闭</string>
+
+    <string name="delete_confirm">确定要删除吗？</string>
+
+    <string name="snackbar_intent_failed">Intent 启动失败</string>
+
+    <!-- URL（不翻译） -->
+    <string name="developer_url">https://github.com/omniclaw/omniclaw</string>
+    <string name="source_url">https://github.com/omniclaw/omniclaw</string>
+    <string name="contact_url">mailto:support@example.com</string>
+    <string name="tutorial_url">https://www.xda-developers.com/debloat-your-phone-run-adb-shell-commands-no-root-no-pc</string>
+
+    <!-- 配对相关 -->
+    <string name="paired_key">已配对</string>
+    <string name="port_hint">端口</string>
+    <string name="code_hint">配对码</string>
+
+    <string name="pair_title">配对信息</string>
+    <string name="pair_message">您必须使用开发者设置中「无线调试」页面的配对码将此设备连接到 X-OmniClaw。如果您之前没有做过此操作，请点击「帮助」查看教程。</string>
+
+    <!-- 设置相关 -->
+    <string name="settings">设置</string>
+    <string name="troubleshooting">故障排除</string>
+    <string name="about">关于</string>
+
+    <string name="unpair_title">取消配对</string>
+    <string name="unpair_summary">清除所有现有的配对信息</string>
+    <string name="unpair_key">取消配对</string>
+
+    <string name="restart_title">重启</string>
+    <string name="restart_summary">重启 ADB 服务器以应用更改的设置</string>
+    <string name="restart_key">重启</string>
+
+    <string name="auto_shell_title">配对并启动 Shell</string>
+    <string name="auto_shell_summary">自动进入 ADB shell；禁用后可进入普通的非 ADB shell 而无需配对</string>
+    <string name="auto_shell_key">auto_shell</string>
+
+    <string name="buffer_size_title">缓冲区大小</string>
+    <string name="buffer_size_summary">屏幕输出缓冲区的大小。增加此值将一次显示更多输出，但会影响性能。（默认：16384）</string>
+    <string name="buffer_size_key">buffer_size</string>
+
+    <string name="startup_command_title">启动命令</string>
+    <string name="startup_command_summary">Shell 启动后要运行的命令</string>
+    <string name="startup_command_key">startup_command</string>
+
+    <string name="tutorial_title">教程</string>
+    <string name="tutorial_summary">查看 XDA Developers 页面的教程</string>
+    <string name="tutorial_key">教程</string>
+
+    <!-- 错误信息 -->
+    <string name="error_waiting_title">卡在「等待」状态</string>
+    <string name="error_waiting_summary">您可能输入了错误的配对信息，或者您的设备未被检测到。首先，确保无线调试确实已启用。如果仍然无法正常工作，请尝试 X-OmniClaw 中的「恢复出厂设置」来重新配对。</string>
+
+    <string name="error_no_wireless_debugging_title">没有「无线调试」选项</string>
+    <string name="error_no_wireless_debugging_summary">您的设备本身不支持无线调试，这是 X-OmniClaw 所必需的。或者，您可以使用 PC 启用此功能，即使在不支持的设备上也可以。这将持续到下次重启。将设备连接到 PC 并输入：adb tcpip 5555</string>
+
+    <!-- 关于页面 -->
+    <string name="developer_title">开发者</string>
+    <string name="developer_summary">X-OmniClaw 团队</string>
+    <string name="developer_key">开发者</string>
+
+    <string name="source_title">源代码</string>
+    <string name="source_summary">在 GitHub 上查看源代码</string>
+    <string name="source_key">源代码</string>
+
+    <string name="contact_title">联系</string>
+    <string name="contact_summary">通过电子邮件联系我们</string>
+    <string name="contact_key">联系</string>
+
+    <string name="licenses_title">许可证</string>
+    <string name="licenses_summary">查看开源许可证</string>
+    <string name="licenses_key">许可证</string>
+
+    <!-- Agent相关 -->
+    <string name="agent_running">Agent 运行中</string>
+    <string name="agent_stopped">Agent 已停止</string>
+    <string name="agent_error">Agent 错误</string>
+
+    <!-- 权限相关 -->
+    <string name="permission_granted">权限已授予</string>
+    <string name="permission_denied">权限被拒绝</string>
+    <string name="accessibility_enabled">无障碍服务已启用</string>
+    <string name="accessibility_disabled">无障碍服务未启用</string>
+    <string name="screen_capture_granted">录屏权限已授予</string>
+    <string name="screen_capture_denied">录屏权限被拒绝</string>
+
+    <!-- 通知相关 -->
+    <string name="notification_channel_created">通知渠道已创建</string>
+    <string name="foreground_service_title">X-OmniClaw 服务</string>
+    <string name="foreground_service_content">服务正在运行</string>
+
+    <!-- 截图相关 -->
+    <string name="screenshot_failed">截图失败</string>
+    <string name="screenshot_dir_not_set">截图目录未设置</string>
+    <string name="screenshot_save_failed">保存截图失败</string>
+    <string name="screenshot_success">截图已保存</string>
+
+    <!-- Gateway相关 -->
+    <string name="gateway_starting">Gateway 启动中</string>
+    <string name="gateway_started">Gateway 已启动</string>
+    <string name="gateway_stopped">Gateway 已停止</string>
+    <string name="gateway_error">Gateway 错误</string>
+
+    <!-- WebSocket相关 -->
+    <string name="websocket_connecting">正在连接 WebSocket...</string>
+    <string name="websocket_connected">WebSocket 已连接</string>
+    <string name="websocket_disconnected">WebSocket 已断开</string>
+    <string name="websocket_error">WebSocket 错误</string>
+    <string name="websocket_reconnecting">尝试重连...</string>
+
+    <!-- 消息处理 -->
+    <string name="message_processing">处理消息中</string>
+    <string name="message_process_failed">处理消息失败</string>
+    <string name="unknown_opcode">未知 opcode: %s</string>
+    <string name="unhandled_event">未处理的事件: %s</string>
+
+    <!-- 会话相关 -->
+    <string name="session_created">会话已创建</string>
+    <string name="session_loaded">会话已加载</string>
+    <string name="session_saved">会话已保存</string>
+    <string name="session_deleted">会话已删除</string>
+    <string name="session_error">会话错误</string>
+
+    <!-- 技能相关 -->
+    <string name="skill_loaded">技能已加载</string>
+    <string name="skill_load_failed">技能加载失败</string>
+    <string name="skill_executing">执行技能中</string>
+    <string name="skill_execution_failed">技能执行失败</string>
+
+    <!-- 工具相关 -->
+    <string name="tool_executing">执行工具中</string>
+    <string name="tool_execution_success">工具执行成功</string>
+    <string name="tool_execution_failed">工具执行失败</string>
+
+    <!-- 模型相关 -->
+    <string name="model_loading">模型加载中</string>
+    <string name="model_loaded">模型已加载</string>
+    <string name="model_error">模型错误</string>
+    <string name="api_call_failed">API 调用失败</string>
+    <string name="api_call_success">API 调用成功</string>
+
+    <!-- 配置相关 -->
+    <string name="config_loading">配置加载中</string>
+    <string name="config_loaded">配置已加载</string>
+    <string name="config_save_failed">配置保存失败</string>
+    <string name="config_invalid">配置无效</string>
+
+    <!-- 通用状态 -->
+    <string name="loading">加载中...</string>
+    <string name="processing">处理中...</string>
+    <string name="success">成功</string>
+    <string name="failed">失败</string>
+    <string name="error">错误</string>
+    <string name="warning">警告</string>
+    <string name="info">信息</string>
+
+    <!-- 操作提示 -->
+    <string name="tap_to_continue">点击继续</string>
+    <string name="swipe_to_dismiss">滑动关闭</string>
+    <string name="long_press_for_options">长按显示选项</string>
+
+    <!-- 时间相关 -->
+    <string name="just_now">刚刚</string>
+    <string name="minutes_ago">%d 分钟前</string>
+    <string name="hours_ago">%d 小时前</string>
+    <string name="days_ago">%d 天前</string>
+
+    <!-- 无障碍服务 -->
+    <string name="accessibility_service_description">X-OmniClaw 无障碍服务，用于控制设备界面</string>
+    <string name="accessibility_service_name">X-OmniClaw 无障碍服务</string>
+
+    <!-- 语言设置 -->
+    <string name="language_setting">语言 / Language</string>
+    <string name="language_system">系统 / System</string>
+    <string name="language_english">English</string>
+    <string name="language_chinese">中文</string>
+    <string name="language_change_restart">语言已更改。请重启应用以使更改生效。</string>
+</resources>

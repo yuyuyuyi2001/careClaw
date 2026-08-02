@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 语言选项 -->
+    <string-array name="language_entries">
+        <item>System / 系统</item>
+        <item>English</item>
+        <item>中文</item>
+    </string-array>
+
+    <string-array name="language_values" translatable="false">
+        <item>system</item>
+        <item>en</item>
+        <item>zh</item>
+    </string-array>
+</resources>
