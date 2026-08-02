@@ -11,6 +11,7 @@ package com.shijing.xomniclaw.agent.tools
  *   3. Last resort: open system settings UI via Intent
  */
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
@@ -103,6 +104,7 @@ class SystemSettingsTool(private val context: Context) : Tool {
 
     // ==================== Bluetooth ====================
 
+    @SuppressLint("MissingPermission")
     private fun toggleBluetooth(enabled: Boolean?): ToolResult {
         return try {
             val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager

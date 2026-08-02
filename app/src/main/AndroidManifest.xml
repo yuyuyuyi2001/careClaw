@@ -5,7 +5,8 @@
     <!-- 正式版本 - 生产环境使用，使用现代权限管理 -->
     <uses-feature
         android:name="android.software.leanback"
-        android:required="false" />
+        android:required="false"
+        tools:ignore="MissingLeanbackLauncher" />
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" /> <!-- 基础权限 -->
@@ -23,7 +24,9 @@
 
     <!-- 服务权限 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
+    <uses-permission
+        android:name="android.permission.BIND_ACCESSIBILITY_SERVICE"
+        tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />

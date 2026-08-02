@@ -10,6 +10,7 @@ package com.shijing.xomniclaw.core
 
 import android.app.Activity
 import com.shijing.xomniclaw.util.ReasoningTagFilter
+import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import android.content.Intent
@@ -223,6 +224,7 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
     /**
      * Start foreground service keep-alive
      */
+    @SuppressLint("NewApi")
     private fun startForegroundServiceKeepAlive() {
         try {
             val serviceIntent = Intent(this, ForegroundService::class.java)
