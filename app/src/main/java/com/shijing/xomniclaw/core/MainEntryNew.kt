@@ -454,7 +454,8 @@ object MainEntryNew {
         sessionId: String?,
         application: Application,
         returnToMainOnFinish: Boolean = false,
-        keepScreenAwake: Boolean = false
+        keepScreenAwake: Boolean = false,
+        remoteReply: ((String) -> Unit)? = null
     ) {
         // Ensure initialized
         if (!::agentLoop.isInitialized) {
@@ -592,6 +593,9 @@ object MainEntryNew {
                         // Update floating window with latest AI response
                         com.shijing.xomniclaw.ui.floatwindow.SessionFloatWindow.updateLatestMessage(displayForUser)
 
+                        // 远程渠道（飞书/HTTP）回执：把最终答复发回对话
+                        remoteReply?.invoke(cleanFinalContent)
+
                         if (sessionUiContext.lastBlockReplyText.get()?.trim() == cleanFinalContent.trim()) {
                             Log.d(TAG, "✅ Final content matches last block reply, skipping broadcast")
                         } else {
@@ -713,6 +717,9 @@ object MainEntryNew {
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to broadcast error message", e)
                 }
+
+                // 远程渠道（飞书/HTTP）回执：把错误信息发回对话
+                remoteReply?.invoke(errorMessage)
 
                 // 保存错误到 session
                 try {

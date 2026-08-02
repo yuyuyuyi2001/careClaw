@@ -173,6 +173,11 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
             com.shijing.xomniclaw.remote.GatewayService.start(this, token)
         }
 
+        // 启动飞书渠道（主远程通道；未配置 appId/appSecret 时自动跳过）
+        runCatching {
+            com.shijing.xomniclaw.remote.FeishuManager.start(this)
+        }
+
 
         // Register global exception handler
         Thread.setDefaultUncaughtExceptionHandler(GlobalExceptionHandler())

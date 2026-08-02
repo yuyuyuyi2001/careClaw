@@ -198,21 +198,6 @@
                 <action android:name="com.shijing.xomniclaw.ACTION_EXECUTE_AGENT" />
             </intent-filter>
         </receiver>
-        <!-- 定时任务闹钟广播 -->
-        <receiver
-            android:name="com.shijing.xomniclaw.scheduler.ScheduledTaskReceiver"
-            android:enabled="true"
-            android:exported="false" />
-        <!-- 开机后恢复定时任务 -->
-        <receiver
-            android:name="com.shijing.xomniclaw.scheduler.ScheduledTaskBootReceiver"
-            android:enabled="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-            </intent-filter>
-        </receiver>
         <!-- Chat消息广播接收器 (用于ADB测试) -->
         <receiver
             android:name="com.shijing.xomniclaw.util.ChatBroadcastReceiver"
