@@ -464,12 +464,12 @@ fun MainScreen(
 
     // 存储权限（MANAGE_EXTERNAL_STORAGE）：外部存储 workspace 目录（会话/配置/skills 落盘处）依赖它，
     // 未授权时 mkdirs 静默失败、写会话文件会抛 ENOENT 导致闪退。此处挂提示条并实时刷新。
-    var storagePermissionGranted by remember { mutableStateOf(Environment.isExternalStorageManager()) }
+    var storagePermissionGranted by remember { mutableStateOf(isAllFilesAccessGranted()) }
     val storageLifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     DisposableEffect(storageLifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                storagePermissionGranted = Environment.isExternalStorageManager()
+                storagePermissionGranted = isAllFilesAccessGranted()
             }
         }
         storageLifecycleOwner.lifecycle.addObserver(observer)
@@ -736,6 +736,10 @@ private fun StoragePermissionBanner(onClickGrant: () -> Unit) {
         }
     }
 }
+
+/** Android 11+ 才需要「所有文件访问」权限；低版本视为已授权。 */
+private fun isAllFilesAccessGranted(): Boolean =
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()
 
 /** 跳转系统「所有文件访问」授权页；厂商 ROM 差异时回退到总设置页。 */
 private fun openAllFilesAccessSettings(context: android.content.Context) {
