@@ -233,7 +233,6 @@ fun ChatScreen(
     onNewSession: () -> Unit = {},
     onDeleteSession: (String) -> Unit = {},
     onCheckUpdate: (() -> Unit)? = null,
-    onCameraToggle: (() -> Unit)? = null,
     onStopAgent: (() -> Unit)? = null,
     /** 由上层（如 MainScreen）持有，避免切换底部导航后 ChatScreen 重进时丢失「语音/键盘」态。 */
     isVoiceMode: Boolean,
@@ -241,9 +240,7 @@ fun ChatScreen(
     isVoiceListening: Boolean = false,
     isVoiceProcessing: Boolean = false,
     onVoicePressStart: (() -> Unit)? = null,
-    onVoicePressEnd: (() -> Unit)? = null,
-    showCameraPreview: Boolean = false,
-    cameraPreviewContent: (@Composable () -> Unit)? = null
+    onVoicePressEnd: (() -> Unit)? = null
 ) {
     var inputText by remember { mutableStateOf("") }
     // 顶部会话下拉框展开态：用下拉替代左侧固定栏，给主对话更多空间。
@@ -261,7 +258,6 @@ fun ChatScreen(
     }
     // 统一维护每个“执行轨迹卡片”的展开态，避免 LazyColumn 复用时局部 remember 状态错位。
     val traceCardExpandedStates = remember { mutableStateMapOf<String, Boolean>() }
-    var lastCameraPreviewVisible by remember { mutableStateOf(showCameraPreview) }
     val listState = rememberLazyListState()
 
     // Auto-scroll to bottom
@@ -281,16 +277,6 @@ fun ChatScreen(
             lastMessageCount = visibleMessages.size
             lastSessionId = currentSession?.id
         }
-    }
-
-    LaunchedEffect(showCameraPreview, isVoiceListening, isVoiceProcessing) {
-        val cameraPreviewJustClosed = lastCameraPreviewVisible && !showCameraPreview
-        if (cameraPreviewJustClosed && (isVoiceListening || isVoiceProcessing)) {
-            // 摄像头语音提问后关闭预览时，自动回到语音态，
-            // 让用户立刻看到“正在识别并等待回答”的反馈，而不是退回文本输入框。
-            onVoiceModeChange(true)
-        }
-        lastCameraPreviewVisible = showCameraPreview
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -572,7 +558,7 @@ fun ChatScreen(
 
             Divider(color = ChatDivider, thickness = 1.dp)
 
-            // Message input box (含摄像头按钮 + 发送/停止按钮)
+            // Message input box (语音/键盘 + 发送/停止按钮)
             MessageComposer(
                 value = inputText,
                 onValueChange = { inputText = it },
@@ -582,7 +568,6 @@ fun ChatScreen(
                         inputText = ""
                     }
                 },
-                onCameraClick = onCameraToggle,
                 isAgentRunning = isLoading,
                 onStop = onStopAgent,
                 isVoiceListening = isVoiceListening,
@@ -593,11 +578,6 @@ fun ChatScreen(
                 onVoiceModeChange = onVoiceModeChange,
                 modifier = Modifier.fillMaxWidth()
             )
-        }
-
-        // 摄像头预览覆盖层（条件显示）
-        if (showCameraPreview && cameraPreviewContent != null) {
-            cameraPreviewContent()
         }
     }
 }
@@ -1201,7 +1181,6 @@ fun MessageComposer(
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
     modifier: Modifier = Modifier,
-    onCameraClick: (() -> Unit)? = null,
     isAgentRunning: Boolean = false,
     onStop: (() -> Unit)? = null,
     isVoiceListening: Boolean = false,
@@ -1398,24 +1377,6 @@ fun MessageComposer(
                             imageVector = Icons.Default.Send,
                             contentDescription = "发送",
                             tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-            } else {
-                Surface(
-                    modifier = Modifier.size(44.dp),
-                    shape = CircleShape,
-                    color = Color(0xFFE0E0E0),
-                    onClick = {
-                        onCameraClick?.invoke()
-                    }
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "更多功能",
-                            tint = Color(0xFF666666),
                             modifier = Modifier.size(20.dp)
                         )
                     }

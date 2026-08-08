@@ -192,8 +192,6 @@ private suspend fun queryPermissionSnapshot(context: Context): PermissionSnapsho
         } else {
             true
         }
-        val cameraVal = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-            PackageManager.PERMISSION_GRANTED
         val microphoneVal = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
 
@@ -203,7 +201,6 @@ private suspend fun queryPermissionSnapshot(context: Context): PermissionSnapsho
             screenCapture = screenCaptureVal,
             album = albumVal,
             allFilesAccess = allFilesVal,
-            camera = cameraVal,
             microphone = microphoneVal,
             systemEnabled = systemEnabled,
             serviceAvailable = serviceAvailable,
@@ -792,7 +789,6 @@ fun ChatTab(
                 "录屏" to snapshot.screenCapture,
                 "相册" to snapshot.album,
                 "全部文件" to snapshot.allFilesAccess,
-                "摄像头" to snapshot.camera,
                 "麦克风" to snapshot.microphone
             )
             val grantedCount = statusList.count { it.second }
@@ -800,9 +796,9 @@ fun ChatTab(
             val allGranted = missing.isEmpty()
             permissionStatusHealthy = allGranted
             permissionStatusInfo = if (allGranted) {
-                "权限状态：全部已授权（$grantedCount/7）"
+                "权限状态：全部已授权（$grantedCount/6）"
             } else {
-                "权限状态：未全部授权（$grantedCount/7）｜缺失：${missing.joinToString("、")}"
+                "权限状态：未全部授权（$grantedCount/6）｜缺失：${missing.joinToString("、")}"
             }
         } catch (e: Exception) {
             permissionStatusHealthy = false
@@ -1470,7 +1466,6 @@ private data class PermissionSnapshot(
     val screenCapture: Boolean,
     val album: Boolean,
     val allFilesAccess: Boolean,
-    val camera: Boolean,
     val microphone: Boolean,
     val systemEnabled: Boolean,
     val serviceAvailable: Boolean,
@@ -1863,7 +1858,6 @@ fun PermissionsCard(onClick: () -> Unit) {
     var screenCapture by remember { mutableStateOf(false) }
     var albumPermission by remember { mutableStateOf(false) }
     var allFilesAccess by remember { mutableStateOf(false) }
-    var cameraPermission by remember { mutableStateOf(false) }
     var microphonePermission by remember { mutableStateOf(false) }
     var isConnecting by remember { mutableStateOf(false) }
 
@@ -1904,8 +1898,6 @@ fun PermissionsCard(onClick: () -> Unit) {
                 } else {
                     true
                 }
-                val cameraVal = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-                    PackageManager.PERMISSION_GRANTED
                 val microphoneVal = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
                     PackageManager.PERMISSION_GRANTED
 
@@ -1915,7 +1907,6 @@ fun PermissionsCard(onClick: () -> Unit) {
                     screenCaptureVal,
                     albumVal,
                     allFilesVal,
-                    cameraVal,
                     microphoneVal,
                     systemEnabled,
                     serviceAvailable,
@@ -1927,11 +1918,10 @@ fun PermissionsCard(onClick: () -> Unit) {
             screenCapture = snapshot.screenCapture
             albumPermission = snapshot.album
             allFilesAccess = snapshot.allFilesAccess
-            cameraPermission = snapshot.camera
             microphonePermission = snapshot.microphone
             Log.d(
                 "PermissionsCard",
-                "Permission status: accessibility=${snapshot.accessibility} (system=${snapshot.systemEnabled}, serviceAvailable=${snapshot.serviceAvailable}, serviceReady=${snapshot.serviceReady}), overlay=${snapshot.overlay}, screenCapture=${snapshot.screenCapture}, album=${snapshot.album}, allFiles=${snapshot.allFilesAccess}, camera=${snapshot.camera}, microphone=${snapshot.microphone}"
+                "Permission status: accessibility=${snapshot.accessibility} (system=${snapshot.systemEnabled}, serviceAvailable=${snapshot.serviceAvailable}, serviceReady=${snapshot.serviceReady}), overlay=${snapshot.overlay}, screenCapture=${snapshot.screenCapture}, album=${snapshot.album}, allFiles=${snapshot.allFilesAccess}, microphone=${snapshot.microphone}"
             )
             } catch (e: Exception) {
                 Log.e("PermissionsCard", "Error checking permissions", e)
@@ -2011,7 +2001,6 @@ fun PermissionsCard(onClick: () -> Unit) {
         screenCapture &&
         albumPermission &&
         allFilesAccess &&
-        cameraPermission &&
         microphonePermission
     val grantedCount = listOf(
         accessibility,
@@ -2019,7 +2008,6 @@ fun PermissionsCard(onClick: () -> Unit) {
         screenCapture,
         albumPermission,
         allFilesAccess,
-        cameraPermission,
         microphonePermission
     ).count { it }
 
@@ -2037,9 +2025,9 @@ fun PermissionsCard(onClick: () -> Unit) {
             )
             Text(
                 text = if (allGranted) {
-                    "全部已授权（$grantedCount/7）"
+                    "全部已授权（$grantedCount/6）"
                 } else {
-                    "未全部授权（$grantedCount/7）"
+                    "未全部授权（$grantedCount/6）"
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = if (allGranted) {
@@ -2068,7 +2056,6 @@ fun PermissionsCard(onClick: () -> Unit) {
             statusLine("录屏权限", screenCapture)
             statusLine("相册读取", albumPermission)
             statusLine("文件管理(全部文件)", allFilesAccess)
-            statusLine("摄像头", cameraPermission)
             statusLine("麦克风", microphonePermission)
 
             Text(

@@ -43,8 +43,8 @@ class PermissionActivity : Activity() {
         private const val REQUEST_CODE_MEDIA_PROJECTION = 10086
         private const val REQUEST_CODE_ACCESSIBILITY = 1001
         private const val REQUEST_CODE_MANAGE_STORAGE = 1002
-        /** 摄像头 + 麦克风运行时权限（与主界面语音/视觉一致） */
-        private const val REQUEST_CODE_CAMERA_MIC = 1003
+        /** 麦克风运行时权限（语音输入；摄像头非产品所需，已移除） */
+        private const val REQUEST_CODE_MIC = 1003
         /** 相册读取权限（Android 13+ READ_MEDIA_IMAGES；低版本 READ_EXTERNAL_STORAGE） */
         private const val REQUEST_CODE_ALBUM = 1004
         private const val STATUS_CHECK_INTERVAL = 2000L  // 2秒检查一次 (降低频率)
@@ -61,7 +61,6 @@ class PermissionActivity : Activity() {
     private var cachedMediaProjectionAuthorized = false
     private var cachedStorageGranted = false
     private var cachedAlbumGranted = false
-    private var cachedCameraGranted = false
     private var cachedMicrophoneGranted = false
     private var lastCheckTime = 0L
 
@@ -76,7 +75,6 @@ class PermissionActivity : Activity() {
         val mediaProjectionAuthorized: Boolean,
         val storageGranted: Boolean,
         val albumGranted: Boolean,
-        val cameraGranted: Boolean,
         val microphoneGranted: Boolean
     )
 
@@ -162,7 +160,7 @@ class PermissionActivity : Activity() {
                 requestMediaProjectionPermission()
             }
 
-            // 摄像头与麦克风（运行时权限）
+            // 麦克风（运行时权限，摄像头已移除）
             btnCameraMic.setOnClickListener {
                 Log.d(TAG, "btnCameraMic clicked")
                 requestCameraMicrophonePermissions()
@@ -199,8 +197,6 @@ class PermissionActivity : Activity() {
                     val mediaProjection = MediaProjectionHelper.isAuthorized()
                     val storage = isStoragePermissionGranted()
                     val album = isAlbumPermissionGranted()
-                    val cameraOk = checkSelfPermission(Manifest.permission.CAMERA) ==
-                        PackageManager.PERMISSION_GRANTED
                     val micOk = checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
                         PackageManager.PERMISSION_GRANTED
                     PermissionCheckSnapshot(
@@ -211,7 +207,6 @@ class PermissionActivity : Activity() {
                         mediaProjectionAuthorized = mediaProjection,
                         storageGranted = storage,
                         albumGranted = album,
-                        cameraGranted = cameraOk,
                         microphoneGranted = micOk
                     )
                 }
@@ -225,7 +220,7 @@ class PermissionActivity : Activity() {
                         "accessibilityEnabled=${result.accessibilityEnabled}, " +
                         "mediaProjectionAuthorized=${result.mediaProjectionAuthorized}, " +
                         "storageGranted=${result.storageGranted}, albumGranted=${result.albumGranted}, " +
-                        "cameraGranted=${result.cameraGranted}, microphoneGranted=${result.microphoneGranted}"
+                        "microphoneGranted=${result.microphoneGranted}"
                 )
 
                 // 更新缓存
@@ -233,7 +228,6 @@ class PermissionActivity : Activity() {
                 cachedMediaProjectionAuthorized = result.mediaProjectionAuthorized
                 cachedStorageGranted = result.storageGranted
                 cachedAlbumGranted = result.albumGranted
-                cachedCameraGranted = result.cameraGranted
                 cachedMicrophoneGranted = result.microphoneGranted
                 lastCheckTime = System.currentTimeMillis()
 
@@ -243,13 +237,12 @@ class PermissionActivity : Activity() {
                     updateMediaProjectionUI(result.mediaProjectionAuthorized)
                     updateStorageUI(result.storageGranted)
                     updateAlbumUI(result.albumGranted)
-                    updateCameraMicrophoneUI(result.cameraGranted, result.microphoneGranted)
+                    updateCameraMicrophoneUI(result.microphoneGranted)
                     updateAllPermissionsUI(
                         result.accessibilityEnabled,
                         result.mediaProjectionAuthorized,
                         result.storageGranted,
                         result.albumGranted,
-                        result.cameraGranted,
                         result.microphoneGranted
                     )
                 }
@@ -485,34 +478,31 @@ class PermissionActivity : Activity() {
     }
 
     /**
-     * 更新摄像头、麦克风 UI（两者都授予才显示总成功）
+     * 更新麦克风权限 UI（摄像头非产品所需，已移除）
      */
-    private fun updateCameraMicrophoneUI(cameraGranted: Boolean, microphoneGranted: Boolean) {
-        val both = cameraGranted && microphoneGranted
+    private fun updateCameraMicrophoneUI(microphoneGranted: Boolean) {
         binding.apply {
-            if (both) {
+            if (microphoneGranted) {
                 tvCameraMicStatus.text = "✅ 已授权"
                 tvCameraMicStatus.setTextColor(getColor(android.R.color.holo_green_dark))
                 btnCameraMic.isEnabled = false
                 btnCameraMic.text = "已授权"
                 btnCameraMic.alpha = 0.5f
                 tvCameraMicDesc.text = """
-                    ✅ 摄像头与麦克风已授权
+                    ✅ 麦克风已授权
 
                     功能:
-                    • 摄像头预览与推流
                     • 语音输入、按住说话
                 """.trimIndent()
             } else {
-                val camText = if (cameraGranted) "✅" else "❌"
                 val micText = if (microphoneGranted) "✅" else "❌"
-                tvCameraMicStatus.text = "摄像头 $camText  麦克风 $micText"
+                tvCameraMicStatus.text = "麦克风 $micText"
                 tvCameraMicStatus.setTextColor(getColor(android.R.color.holo_red_dark))
                 btnCameraMic.isEnabled = true
-                btnCameraMic.text = "授予摄像头与麦克风"
+                btnCameraMic.text = "授予麦克风权限"
                 btnCameraMic.alpha = 1.0f
                 tvCameraMicDesc.text = """
-                    ⚠️ 需要摄像头与麦克风权限
+                    ⚠️ 需要麦克风权限
 
                     说明:
                     • 点击按钮后，在系统弹窗中允许相应权限
@@ -523,43 +513,40 @@ class PermissionActivity : Activity() {
     }
 
     /**
-     * 更新总体状态 UI（5 项：无障碍、录屏、存储、摄像头、麦克风）
+     * 更新总体状态 UI（5 项：无障碍、录屏、存储、相册、麦克风）
      */
     private fun updateAllPermissionsUI(
         accessibilityEnabled: Boolean,
         mediaProjectionAuthorized: Boolean,
         storageGranted: Boolean,
         albumGranted: Boolean,
-        cameraGranted: Boolean,
         microphoneGranted: Boolean
     ) {
-        val camMicComplete = cameraGranted && microphoneGranted
         val allGranted = accessibilityEnabled &&
             mediaProjectionAuthorized &&
             storageGranted &&
             albumGranted &&
-            camMicComplete
+            microphoneGranted
         val grantedCount = listOf(
             accessibilityEnabled,
             mediaProjectionAuthorized,
             storageGranted,
             albumGranted,
-            cameraGranted,
             microphoneGranted
         ).count { it }
 
         binding.apply {
             if (allGranted) {
-                tvAllStatus.text = "✅ 所有权限已授予 (6/6)"
+                tvAllStatus.text = "✅ 所有权限已授予 (5/5)"
                 tvAllStatus.setTextColor(getColor(android.R.color.holo_green_dark))
                 btnGrantAll.isEnabled = false
                 btnGrantAll.text = "全部已授权"
                 btnGrantAll.alpha = 0.5f
             } else {
-                tvAllStatus.text = "⚠️ 已授予 $grantedCount/6 个权限"
+                tvAllStatus.text = "⚠️ 已授予 $grantedCount/5 个权限"
                 tvAllStatus.setTextColor(getColor(android.R.color.holo_orange_dark))
                 btnGrantAll.isEnabled = true
-                btnGrantAll.text = "一键授权 (${grantedCount}/6)"
+                btnGrantAll.text = "一键授权 (${grantedCount}/5)"
                 btnGrantAll.alpha = 1.0f
             }
         }
@@ -645,32 +632,25 @@ class PermissionActivity : Activity() {
     }
 
     /**
-     * 请求摄像头与麦克风（合并一次系统对话框，按需只申请未授权的）
+     * 请求麦克风权限（摄像头非产品所需，已移除）
      */
     private fun requestCameraMicrophonePermissions() {
         try {
-            val need = mutableListOf<String>()
-            if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                need.add(Manifest.permission.CAMERA)
-            }
-            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                need.add(Manifest.permission.RECORD_AUDIO)
-            }
-            if (need.isEmpty()) {
-                Toast.makeText(this, "摄像头与麦克风权限已具备", Toast.LENGTH_SHORT).show()
-                checkPermissionsAsync("requestCameraMic-alreadyOk")
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "麦克风权限已具备", Toast.LENGTH_SHORT).show()
+                checkPermissionsAsync("requestMic-alreadyOk")
                 return
             }
-            requestPermissions(need.toTypedArray(), REQUEST_CODE_CAMERA_MIC)
-            Toast.makeText(this, "请在系统弹窗中允许摄像头与麦克风", Toast.LENGTH_LONG).show()
+            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_CODE_MIC)
+            Toast.makeText(this, "请在系统弹窗中允许麦克风", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to request camera/microphone permissions", e)
-            Toast.makeText(this, "请求摄像头/麦克风失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "Failed to request microphone permission", e)
+            Toast.makeText(this, "请求麦克风失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
     /**
-     * 一键授权所有权限（顺序：无障碍 → 存储 → 录屏 → 相册 → 摄像头/麦克风）
+     * 一键授权所有权限（顺序：无障碍 → 存储 → 录屏 → 相册 → 麦克风）
      */
     private fun grantAllPermissions() {
         when {
@@ -678,7 +658,7 @@ class PermissionActivity : Activity() {
             !cachedStorageGranted -> requestStoragePermission()
             !cachedMediaProjectionAuthorized -> requestMediaProjectionPermission()
             !cachedAlbumGranted -> requestAlbumPermission()
-            !cachedCameraGranted || !cachedMicrophoneGranted -> requestCameraMicrophonePermissions()
+            !cachedMicrophoneGranted -> requestCameraMicrophonePermissions()
             else -> {
                 Toast.makeText(this, "全部权限已就绪", Toast.LENGTH_SHORT).show()
             }
@@ -763,15 +743,15 @@ class PermissionActivity : Activity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         when (requestCode) {
-            REQUEST_CODE_CAMERA_MIC -> {
-                val allGranted = grantResults.isNotEmpty() &&
+            REQUEST_CODE_MIC -> {
+                val granted = grantResults.isNotEmpty() &&
                     grantResults.all { it == PackageManager.PERMISSION_GRANTED }
-                if (allGranted) {
-                    Toast.makeText(this, "✅ 摄像头与麦克风权限已授予", Toast.LENGTH_SHORT).show()
+                if (granted) {
+                    Toast.makeText(this, "✅ 麦克风权限已授予", Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(this, "❌ 部分权限未授予，可在系统设置中手动开启", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "❌ 麦克风权限未授予，可在系统设置中手动开启", Toast.LENGTH_LONG).show()
                 }
-                mainHandler.postDelayed({ checkPermissionsAsync("onRequestPermissionsResult-cameraMic") }, 400)
+                mainHandler.postDelayed({ checkPermissionsAsync("onRequestPermissionsResult-mic") }, 400)
             }
             REQUEST_CODE_ALBUM -> {
                 val allGranted = grantResults.isNotEmpty() &&

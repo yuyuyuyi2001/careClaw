@@ -40,7 +40,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="X-OmniClaw 需要以下权限才能正常工作（含相册、摄像头、麦克风）。可点「一键授权」按顺序引导。"
+                    android:text="X-OmniClaw 需要以下权限才能正常工作（含相册、麦克风）。可点「一键授权」按顺序引导。"
                     android:textSize="14sp"
                     android:textColor="#666666" />
 
@@ -291,7 +291,7 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- 5. 摄像头与麦克风（运行时权限，一键授权链路靠后触发） -->
+        <!-- 5. 麦克风（运行时权限，一键授权链路靠后触发） -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -315,7 +315,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="摄像头与麦克风"
+                        android:text="麦克风"
                         android:textSize="18sp"
                         android:textStyle="bold"
                         android:textColor="#000000" />
@@ -334,7 +334,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="用于：摄像头画面推流、语音输入与按住说话"
+                    android:text="用于：语音输入与按住说话"
                     android:textSize="12sp"
                     android:textColor="#666666" />
 
@@ -344,7 +344,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="授予摄像头与麦克风"
+                    android:text="授予麦克风权限"
                     android:textSize="14sp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
