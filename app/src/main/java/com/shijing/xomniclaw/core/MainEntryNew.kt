@@ -671,6 +671,12 @@ object MainEntryNew {
                         toolsUsed = result.toolsUsed
                     )
 
+                    // 流式增量占位清理信号：本轮完整回复已落盘，UI 移除 stream:* 前缀的进行中消息，
+                    // 避免打字机占位与 backend 同步的完整气泡重复。
+                    sessionUiContext?.let { ctx ->
+                        emitProgressToUi(ctx, "stream_complete", "完成", "")
+                    }
+
                     if (shouldReturnToMain) {
                         bringMainUiToFrontAndNotify(
                             sessionId = effectiveSessionId,
@@ -977,13 +983,14 @@ object MainEntryNew {
         sessionUiContext: SessionUiContext,
         type: String,
         title: String,
-        content: String
+        content: String,
+        stableId: String? = null
     ) {
         val sessionId = sessionUiContext.sessionId
         val sequence = progressEventCounter.incrementAndGet()
         _uiProgressFlow.tryEmit(
             UiProgressEvent(
-                id = "progress_${sessionId}_$sequence",
+                id = stableId ?: "progress_${sessionId}_$sequence",
                 sessionId = sessionId,
                 type = type,
                 title = title,
@@ -1153,6 +1160,20 @@ object MainEntryNew {
                     emitProgressToUi(it, "block_reply", "中间回复", update.text)
                     // 中间回复需要绑定到本次 run 的 session，不能再走全局 activeSessionId。
                     it.lastBlockReplyText.set(update.text)
+                }
+            }
+
+            is ProgressUpdate.StreamDelta -> {
+                logd("▶️ Stream ${if (update.thinking) "思考" else "回答"}: +${update.text.length} chars")
+                // 流式增量：用固定 stableId 让 ChatViewModel 合并到同一条进行中消息，实现打字机效果
+                sessionUiContext?.let {
+                    emitProgressToUi(
+                        it,
+                        type = if (update.thinking) "stream_thinking" else "stream_delta",
+                        title = if (update.thinking) "思考中" else "回复中",
+                        content = update.text,
+                        stableId = if (update.thinking) "stream:${it.sessionId}:thinking" else "stream:${it.sessionId}"
+                    )
                 }
             }
         }

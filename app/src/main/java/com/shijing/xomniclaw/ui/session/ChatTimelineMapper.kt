@@ -80,6 +80,8 @@ object ChatTimelineMapper {
             "reasoning" -> ChatMessageKind.THINKING
             "block_reply" -> ChatMessageKind.BLOCK_REPLY
             "error" -> ChatMessageKind.ERROR
+            "stream_delta" -> ChatMessageKind.ASSISTANT   // 流式回答增量 → 主对话气泡
+            "stream_thinking" -> ChatMessageKind.THINKING // 流式思考增量 → 思考卡片
             else -> ChatMessageKind.SYSTEM
         }
         val status = if (kind == ChatMessageKind.ERROR) MessageStatus.ERROR else MessageStatus.SENT

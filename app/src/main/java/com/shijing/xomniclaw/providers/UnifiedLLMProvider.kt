@@ -155,6 +155,169 @@ class UnifiedLLMProvider(private val context: Context) {
     }
 
     /**
+     * 流式聊天（SSE 增量解析）。仅对 OpenAI 兼容 API 生效；其他 API 或流式失败时静默回退到 [chatWithTools] 非流式。
+     * 通过 [onDelta] 回调逐块推送增量（回答 / 思考过程分别回调），最终仍返回完整 [LLMResponse] 供 AgentLoop 判断。
+     */
+    suspend fun chatWithToolsStreaming(
+        messages: List<Message>,
+        tools: List<ToolDefinition>?,
+        modelRef: String? = null,
+        temperature: Double = DEFAULT_TEMPERATURE,
+        maxTokens: Int? = null,
+        reasoningEnabled: Boolean = false,
+        onDelta: suspend (StreamChunk) -> Unit = {}
+    ): LLMResponse = withContext(Dispatchers.IO) {
+        val newTools = tools?.map { convertToolDefinition(it) }
+        try {
+            val streamed = performStreamingRequest(
+                messages, newTools, modelRef, temperature, maxTokens, reasoningEnabled, onDelta
+            )
+            if (streamed != null) {
+                streamed
+            } else {
+                // 非 OpenAI 兼容 API → 非流式
+                chatWithTools(messages, tools, modelRef, temperature, maxTokens, reasoningEnabled)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ Streaming request failed, falling back to non-streaming: ${e.message}")
+            chatWithTools(messages, tools, modelRef, temperature, maxTokens, reasoningEnabled)
+        }
+    }
+
+    /**
+     * 执行流式请求。返回 null 表示该 API 类型不支持流式（调用方回退非流式）；抛异常表示流式失败（调用方回退）。
+     */
+    private suspend fun performStreamingRequest(
+        messages: List<Message>,
+        tools: List<NewToolDefinition>?,
+        modelRef: String?,
+        temperature: Double,
+        maxTokens: Int?,
+        reasoningEnabled: Boolean,
+        onDelta: suspend (StreamChunk) -> Unit
+    ): LLMResponse? {
+        val (providerName, modelId) = parseModelRef(modelRef)
+        val provider = configLoader.getProviderConfig(providerName)
+            ?: throw IllegalArgumentException("Provider not found: $providerName")
+        val model = provider.models.find { it.id == modelId }
+            ?: throw IllegalArgumentException("Model not found: $modelId in provider: $providerName")
+
+        val effectiveApi = model.api ?: provider.api
+        // 仅 OpenAI 兼容格式支持 SSE 流式；其余（Anthropic/MiniMax/Bedrock）保持非流式
+        if (!ModelApi.isOpenAICompat(effectiveApi)) return null
+
+        // 构造请求体并开启 stream
+        val requestBody = ApiAdapter.buildRequestBody(
+            provider = provider,
+            model = model,
+            messages = messages,
+            tools = tools,
+            temperature = temperature,
+            maxTokens = maxTokens,
+            reasoningEnabled = reasoningEnabled
+        )
+        val normalized = normalizeOpenAiTokenField(model, requestBody)
+        normalized.put("stream", true)
+        val wireBody = normalized.requestBodyForWire()
+        val headers = ApiAdapter.buildHeaders(provider, model)
+        val apiUrl = buildApiUrl(provider, model)
+
+        val request = Request.Builder()
+            .url(apiUrl)
+            .headers(headers)
+            .post(wireBody.toRequestBody("application/json".toMediaType()))
+            .build()
+
+        val response = httpClient.newCall(request).execute()
+        if (!response.isSuccessful) {
+            val errorBody = response.body?.string() ?: "Unknown error"
+            Log.e(TAG, "❌ API Error (${response.code}) [stream]: $errorBody")
+            val authHint = buildHttpErrorHint(response.code, errorBody, apiUrl, providerName)
+            throw LLMException("API request failed: ${response.code} - $errorBody$authHint")
+        }
+
+        // ===== SSE 增量解析 =====
+        val source = response.body?.source() ?: throw LLMException("Empty response body")
+        val contentSb = StringBuilder()
+        val thinkingSb = StringBuilder()
+        val toolCallsById = LinkedHashMap<Int, MutableStreamToolCall>()
+        var finishReason: String? = null
+        var usage: LLMUsage? = null
+
+        while (!source.exhausted()) {
+            val line = source.readUtf8Line() ?: break
+            if (!line.startsWith("data:")) continue  // 空行 / 注释心跳
+            val payload = line.substring(5).trim()
+            if (payload.isEmpty()) continue
+            if (payload == "[DONE]") break
+            val json = try { JSONObject(payload) } catch (_: Exception) { continue }
+
+            val choices = json.optJSONArray("choices")
+            if (choices != null && choices.length() > 0) {
+                val choice = choices.getJSONObject(0)
+                val delta = choice.optJSONObject("delta") ?: JSONObject()
+                // 思考增量（kimi 等推理模型的 reasoning_content）
+                val thinkingDelta = delta.optString("reasoning_content", "")
+                if (thinkingDelta.isNotEmpty()) {
+                    thinkingSb.append(thinkingDelta)
+                    onDelta(StreamChunk(thinkingDelta = thinkingDelta))
+                }
+                // 回答增量
+                val contentDelta = delta.optString("content", "")
+                if (contentDelta.isNotEmpty()) {
+                    contentSb.append(contentDelta)
+                    onDelta(StreamChunk(contentDelta = contentDelta))
+                }
+                // 工具调用增量（OpenAI 分片格式：index + id/name 首块 + arguments 分片）
+                val toolCallsArr = delta.optJSONArray("tool_calls")
+                if (toolCallsArr != null) {
+                    for (i in 0 until toolCallsArr.length()) {
+                        val tc = toolCallsArr.getJSONObject(i)
+                        val index = tc.optInt("index", 0)
+                        val acc = toolCallsById.getOrPut(index) { MutableStreamToolCall() }
+                        if (tc.has("id")) acc.id = tc.optString("id")
+                        val fn = tc.optJSONObject("function")
+                        if (fn != null) {
+                            if (fn.has("name")) acc.name = fn.optString("name")
+                            if (fn.has("arguments")) acc.arguments.append(fn.optString("arguments"))
+                        }
+                    }
+                }
+                finishReason = choice.optString("finish_reason").takeIf { it.isNotEmpty() } ?: finishReason
+            }
+            // 部分服务端在流末附加 usage
+            val usageObj = json.optJSONObject("usage")
+            if (usageObj != null) {
+                usage = LLMUsage(
+                    promptTokens = usageObj.optInt("prompt_tokens", 0),
+                    completionTokens = usageObj.optInt("completion_tokens", 0),
+                    totalTokens = usageObj.optInt("total_tokens", 0)
+                )
+            }
+        }
+        response.close()
+
+        val toolCalls = toolCallsById.values
+            .map { LLMToolCall(id = it.id, name = it.name, arguments = it.arguments.toString()) }
+            .takeIf { it.isNotEmpty() }
+        val thinkingContent = thinkingSb.toString().takeIf { it.isNotBlank() }
+        return LLMResponse(
+            content = contentSb.toString().takeIf { it.isNotBlank() },
+            toolCalls = toolCalls,
+            thinkingContent = thinkingContent,
+            usage = usage,
+            finishReason = finishReason
+        )
+    }
+
+    /** 流式工具调用累积容器（OpenAI 分片 delta 拼接）。 */
+    private class MutableStreamToolCall {
+        var id: String = ""
+        var name: String = ""
+        val arguments: StringBuilder = StringBuilder()
+    }
+
+    /**
      * 执行实际的 LLM 请求
      */
     private suspend fun performRequest(
@@ -797,6 +960,15 @@ class UnifiedLLMProvider(private val context: Context) {
 private data class LlmRequestPlan(
     val body: JSONObject,
     val multimodalFormat: String
+)
+
+/**
+ * 流式增量块：LLM 边生成边推送的片段，回答与思考过程分开回调。
+ */
+data class StreamChunk(
+    val contentDelta: String = "",
+    val thinkingDelta: String = "",
+    val finishReason: String? = null
 )
 
 /**

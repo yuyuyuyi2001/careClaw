@@ -422,11 +422,20 @@ class AgentLoop(
         if (shouldStop) throw RuntimeException("__AGENT_STOPPED__")
         llmProvider.currentIterationHint = iteration
         val response = withTimeout(LLM_TIMEOUT_MS) {
-            llmProvider.chatWithTools(
+            llmProvider.chatWithToolsStreaming(
                 messages = messages,
                 tools = llmToolDefinitionsForThisRun,
                 modelRef = modelRef,
-                reasoningEnabled = reasoningEnabled
+                reasoningEnabled = reasoningEnabled,
+                onDelta = { chunk ->
+                    // 流式增量实时推给 UI：思考（reasoning_content）与回答（content）分开
+                    if (chunk.thinkingDelta.isNotEmpty()) {
+                        _progressFlow.emit(ProgressUpdate.StreamDelta(text = chunk.thinkingDelta, thinking = true))
+                    }
+                    if (chunk.contentDelta.isNotEmpty()) {
+                        _progressFlow.emit(ProgressUpdate.StreamDelta(text = chunk.contentDelta, thinking = false))
+                    }
+                }
             )
         }
         response.usage?.let { u ->
@@ -533,4 +542,6 @@ sealed class ProgressUpdate {
     ) : ProgressUpdate()
     data class LlmUsage(val usage: LlmTokenUsage) : ProgressUpdate()
     data class BlockReply(val text: String, val iteration: Int) : ProgressUpdate()
+    /** 流式增量：LLM 边生成边推送（thinking=false 为回答，true 为思考过程）。 */
+    data class StreamDelta(val text: String, val thinking: Boolean = false) : ProgressUpdate()
 }

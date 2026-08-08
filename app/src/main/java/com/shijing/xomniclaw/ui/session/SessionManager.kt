@@ -10,6 +10,7 @@ import android.util.Log
 import com.shijing.xomniclaw.providers.LegacyMessage
 import com.shijing.xomniclaw.ui.compose.ChatMessage
 import com.shijing.xomniclaw.ui.compose.ChatMessageKind
+import com.shijing.xomniclaw.ui.compose.MessageStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -401,6 +402,40 @@ class SessionManager {
             } else {
                 session.copy(messages = session.messages + message)
             }
+        }
+    }
+
+    /**
+     * 流式增量消息：同一 eventKey 的进行中消息存在则追加 content（打字机），否则新增一条。
+     * @return true 表示合并到已有消息，false 表示新增
+     */
+    fun updateOrAppendStreamingMessage(sessionId: String, message: ChatMessage): Boolean {
+        var appended = false
+        updateSessionById(sessionId) { session ->
+            val idx = session.messages.indexOfLast { m -> m.eventKey != null && m.eventKey == message.eventKey }
+            if (idx >= 0) {
+                val old = session.messages[idx]
+                appended = true
+                val merged = old.copy(
+                    content = old.content + message.content,
+                    timestamp = message.timestamp,
+                    status = MessageStatus.SENDING
+                )
+                val newMessages = session.messages.toMutableList().apply { set(idx, merged) }
+                session.copy(messages = newMessages)
+            } else {
+                session.copy(messages = session.messages + message)
+            }
+        }
+        return appended
+    }
+
+    /**
+     * 移除 eventKey 以指定前缀开头的消息（流式完成后的占位清理，避免与 backend 完整气泡重复）。
+     */
+    fun removeMessagesByEventKeyPrefix(sessionId: String, prefix: String) {
+        updateSessionById(sessionId) { session ->
+            session.copy(messages = session.messages.filterNot { it.eventKey?.startsWith(prefix) == true })
         }
     }
 

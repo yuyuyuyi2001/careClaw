@@ -115,8 +115,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun observeAgentProgress() {
         viewModelScope.launch {
             MainEntryNew.uiProgressFlow.collect { event ->
-                val message = ChatTimelineMapper.fromProgressEvent(event) ?: return@collect
-                uiSessionManager.addMessageToSession(event.sessionId, message)
+                when (event.type) {
+                    // 流式完成信号：清理 stream:* 增量占位，等待 backend 完整气泡替换
+                    "stream_complete" -> {
+                        uiSessionManager.removeMessagesByEventKeyPrefix(event.sessionId, "stream:")
+                    }
+                    // 流式增量：合并到同一条进行中消息（打字机效果）
+                    "stream_delta", "stream_thinking" -> {
+                        val message = ChatTimelineMapper.fromProgressEvent(event) ?: return@collect
+                        uiSessionManager.updateOrAppendStreamingMessage(event.sessionId, message)
+                    }
+                    else -> {
+                        val message = ChatTimelineMapper.fromProgressEvent(event) ?: return@collect
+                        uiSessionManager.addMessageToSession(event.sessionId, message)
+                    }
+                }
             }
         }
     }
