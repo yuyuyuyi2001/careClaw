@@ -4,7 +4,7 @@ package com.shijing.xomniclaw.accessibility
  * Upstream reference (OmniClaw):
  * - ../omniclaw/src/gateway/(all)
  *
- * X-OmniClaw adaptation: observer permission and projection flow.
+ * CareClaw adaptation: observer permission and projection flow.
  */
 
 

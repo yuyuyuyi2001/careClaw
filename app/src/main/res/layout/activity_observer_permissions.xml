@@ -40,7 +40,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="X-OmniClaw 需要以下权限才能正常工作（含相册、麦克风）。可点「一键授权」按顺序引导。"
+                    android:text="CareClaw 需要以下权限才能正常工作（含相册、麦克风）。可点「一键授权」按顺序引导。"
                     android:textSize="14sp"
                     android:textColor="#666666" />
 

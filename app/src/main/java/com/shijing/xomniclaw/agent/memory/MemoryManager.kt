@@ -320,15 +320,15 @@ class MemoryManager(
 
     private fun createMemoryTemplate(): String {
         val template = loadBundledMemoryTemplate() ?: """
-# X-OmniClaw 全局记忆
+# CareClaw 全局记忆
 
-此文件保存用户使用 X-OmniClaw 执行任务过程中沉淀的长期记忆。
+此文件保存用户使用 CareClaw 执行任务过程中沉淀的长期记忆。
 
 ## 用户偏好与习惯
 
 - 暂无稳定记忆。
 
-## X-OmniClaw 任务经验与工作流
+## CareClaw 任务经验与工作流
 
 - 暂无稳定记忆。
 

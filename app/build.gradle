@@ -144,8 +144,8 @@ android {
         variant.outputs.all { output ->
             def outputFile = output.outputFile
             if (outputFile != null && outputFile.name.endsWith('.apk')) {
-                // 生成文件名: X-OmniClaw-v1.0.0-release.apk
-                def fileName = "X-OmniClaw-v${defaultConfig.versionName}-${variant.buildType.name}.apk"
+                // 生成文件名: CareClaw-v1.0.0-release.apk
+                def fileName = "CareClaw-v${defaultConfig.versionName}-${variant.buildType.name}.apk"
 
                 // 输出到项目根目录的 releases/
                 def releasesDir = project.rootProject.file("releases")

@@ -25,7 +25,7 @@ class MemoryEvolutionSkill(private val context: Context) : Skill {
         private const val TAG = "MemoryEvolutionSkill"
         private const val WORKSPACE_PATH = "/sdcard/.xomniclaw/workspace"
         private const val LLM_FUNCTION_DESCRIPTION = "Run or inspect global memory evolution. " +
-            "action: run|status. run processes pending X-OmniClaw task memories, updates MEMORY.md, and rebuilds memory/USER-PROFILE.md."
+            "action: run|status. run processes pending CareClaw task memories, updates MEMORY.md, and rebuilds memory/USER-PROFILE.md."
         private val TIME_FORMAT = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
     }
 

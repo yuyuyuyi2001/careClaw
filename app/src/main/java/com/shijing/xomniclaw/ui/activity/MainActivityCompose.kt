@@ -1,8 +1,8 @@
 /**
- * X-OmniClaw Source Reference:
+ * CareClaw Source Reference:
  * - ../xomniclaw/src/gateway/(all)
  *
- * X-OmniClaw adaptation: Android UI layer.
+ * CareClaw adaptation: Android UI layer.
  */
 package com.shijing.xomniclaw.ui.activity
 

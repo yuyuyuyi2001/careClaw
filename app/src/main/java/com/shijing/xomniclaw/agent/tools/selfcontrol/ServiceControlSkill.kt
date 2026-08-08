@@ -4,7 +4,7 @@ package com.shijing.xomniclaw.agent.tools.selfcontrol
  * Upstream reference (OmniClaw):
  * - ../omniclaw/src/gateway/(all)
  *
- * X-OmniClaw adaptation: self-control runtime support.
+ * CareClaw adaptation: self-control runtime support.
  */
 
 

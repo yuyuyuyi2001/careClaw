@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- App基本信息 -->
-    <string name="app_name">X-OmniClaw</string>
+    <string name="app_name">CareClaw</string>
 
     <!-- 屏内替身浮窗 -->
     <string name="companion_float_resize_handle_desc">拖拽调整替身条大小</string>
@@ -45,14 +45,14 @@
 
     <!-- 错误信息 -->
     <string name="error_waiting_title">卡在「等待」状态</string>
-    <string name="error_waiting_summary">您可能输入了错误的配对信息，或者您的设备未被检测到。首先，确保无线调试确实已启用。如果仍然无法正常工作，请尝试 X-OmniClaw 中的「恢复出厂设置」来重新配对。</string>
+    <string name="error_waiting_summary">您可能输入了错误的配对信息，或者您的设备未被检测到。首先，确保无线调试确实已启用。如果仍然无法正常工作，请尝试 CareClaw 中的「恢复出厂设置」来重新配对。</string>
 
     <string name="error_no_wireless_debugging_title">没有「无线调试」选项</string>
-    <string name="error_no_wireless_debugging_summary">您的设备本身不支持无线调试，这是 X-OmniClaw 所必需的。或者，您可以使用 PC 启用此功能，即使在不支持的设备上也可以。这将持续到下次重启。将设备连接到 PC 并输入：adb tcpip 5555</string>
+    <string name="error_no_wireless_debugging_summary">您的设备本身不支持无线调试，这是 CareClaw 所必需的。或者，您可以使用 PC 启用此功能，即使在不支持的设备上也可以。这将持续到下次重启。将设备连接到 PC 并输入：adb tcpip 5555</string>
 
     <!-- 关于页面 -->
     <string name="developer_title">开发者</string>
-    <string name="developer_summary">X-OmniClaw 团队</string>
+    <string name="developer_summary">CareClaw 团队</string>
     <string name="developer_key">开发者</string>
 
     <string name="source_title">源代码</string>
@@ -98,7 +98,7 @@
     <!-- 时间相关 -->
 
     <!-- 无障碍服务 -->
-    <string name="accessibility_service_description">X-OmniClaw 无障碍服务，用于控制设备界面</string>
+    <string name="accessibility_service_description">CareClaw 无障碍服务，用于控制设备界面</string>
 
     <!-- 语言设置 -->
 

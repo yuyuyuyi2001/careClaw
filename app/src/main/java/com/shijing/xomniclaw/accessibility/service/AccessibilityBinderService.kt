@@ -4,7 +4,7 @@ package com.shijing.xomniclaw.accessibility.service
  * Upstream reference (OmniClaw):
  * - ../omniclaw/src/gateway/(all)
  *
- * X-OmniClaw adaptation: in-app accessibility/observer service layer.
+ * CareClaw adaptation: in-app accessibility/observer service layer.
  */
 
 

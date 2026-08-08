@@ -40,7 +40,7 @@ class LocalVoiceVisionHub(
         private const val ORCHESTRATION_PROMPT_ASSET = "bootstrap/VOICE_VISION_ORCHESTRATION_PROMPT.md"
 
         // 兜底文案仅在 assets 文件丢失时生效，主配置应维护在 bootstrap markdown 中。
-        private const val DEFAULT_SYSTEM_PROMPT_FALLBACK = "你是 X-OmniClaw Android 助手，结合语音与截图理解意图；单步任务可输出 JSON 指令，多步任务优先输出 agent_task。"
+        private const val DEFAULT_SYSTEM_PROMPT_FALLBACK = "你是 CareClaw Android 助手，结合语音与截图理解意图；单步任务可输出 JSON 指令，多步任务优先输出 agent_task。"
         private const val DEFAULT_ORCHESTRATION_PROMPT_FALLBACK = "当前任务交由主 AgentLoop 执行，请输出给 Agent 的执行提示（任务理解/执行约束/完成标准），不要直接给最终答案。"
     }
 

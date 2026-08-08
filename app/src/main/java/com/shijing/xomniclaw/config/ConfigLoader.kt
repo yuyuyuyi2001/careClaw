@@ -1,11 +1,11 @@
 package com.shijing.xomniclaw.config
 
 /**
- * X-OmniClaw Source Reference:
+ * CareClaw Source Reference:
  * - ../xomniclaw/src/config/(all)
  * - ../xomniclaw/docs/gateway/configuration-reference.md
  *
- * X-OmniClaw adaptation: load/save/observe xomniclaw.json on Android storage.
+ * CareClaw adaptation: load/save/observe xomniclaw.json on Android storage.
  */
 
 import android.content.Context
@@ -16,7 +16,7 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * 配置加载器 - 对齐 X-OmniClaw 的配置加载逻辑
+ * 配置加载器 - 对齐 CareClaw 的配置加载逻辑
  *
  * 使用 org.json.JSONObject 解析，缺失字段自动用 data class 默认值。
  * 用户 config 只需写想覆盖的字段，其他全用默认值。
@@ -76,7 +76,7 @@ class ConfigLoader(private val context: Context) {
     }
 
     /**
-     * 加载 X-OmniClaw 主配置（带自动备份和恢复）
+     * 加载 CareClaw 主配置（带自动备份和恢复）
      */
     fun loadOmniClawConfig(): XOmniClawConfig {
         val currentLastModifiedMs = if (omniclawConfigFile.exists()) omniclawConfigFile.lastModified() else -1L
@@ -159,7 +159,7 @@ class ConfigLoader(private val context: Context) {
 
         val gatewayJson = root.optJSONObject("gateway")
 
-        // Gateway（对齐 X-OmniClaw: 只有 port/mode/bind/auth）
+        // Gateway（对齐 CareClaw: 只有 port/mode/bind/auth）
         val gateway = gatewayJson?.let { parseGatewayConfig(it) } ?: GatewayConfig()
 
         // Skills
@@ -769,7 +769,7 @@ class ConfigLoader(private val context: Context) {
             root.put("vision", visionObj)
         }
 
-        // Gateway (对齐 X-OmniClaw: 只有 port/mode/bind/auth)
+        // Gateway (对齐 CareClaw: 只有 port/mode/bind/auth)
         val gwObj = root.optJSONObject("gateway") ?: JSONObject()
         gwObj.put("port", config.gateway.port)
         root.put("gateway", gwObj)
@@ -856,7 +856,7 @@ class ConfigLoader(private val context: Context) {
 
     /**
      * 已知环境变量名 → Provider ID 映射
-     * 来源: X-OmniClaw PROVIDER_ENV_API_KEY_CANDIDATES
+     * 来源: CareClaw PROVIDER_ENV_API_KEY_CANDIDATES
      */
     private val ENV_VAR_TO_PROVIDER = mapOf(
         "OPENROUTER_API_KEY" to "openrouter",

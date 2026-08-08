@@ -34,7 +34,7 @@ object MemoryEvolutionPolicy {
         }
 
         val requiredSkeleton = buildString {
-            appendLine("# X-OmniClaw 全局记忆")
+            appendLine("# CareClaw 全局记忆")
             appendLine()
             appendLine("此文件已按预算压缩，仅保留最近和最稳定的任务记忆。")
             MemoryCategory.values().forEach { category ->
@@ -47,7 +47,7 @@ object MemoryEvolutionPolicy {
             return requiredSkeleton.take(maxChars)
         }
 
-        output += "# X-OmniClaw 全局记忆"
+        output += "# CareClaw 全局记忆"
         output += ""
         output += "此文件已按预算压缩，仅保留最近和最稳定的任务记忆。"
         val categories = MemoryCategory.values().toList()

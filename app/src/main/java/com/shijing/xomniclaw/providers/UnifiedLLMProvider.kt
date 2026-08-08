@@ -1,11 +1,11 @@
 package com.shijing.xomniclaw.providers
 
 /**
- * X-OmniClaw Source Reference:
+ * CareClaw Source Reference:
  * - ../xomniclaw/src/agents/pi-embedded-runner/(all)
  * - ../xomniclaw/src/agents/model-(all)
  *
- * X-OmniClaw adaptation: unified provider dispatch for Android.
+ * CareClaw adaptation: unified provider dispatch for Android.
  */
 
 
@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * 统一 LLM Provider
- * Supports all X-OmniClaw compatible API types
+ * Supports all CareClaw compatible API types
  *
  * Features:
  * 1. Automatically load provider and model info from config files
@@ -48,7 +48,7 @@ import java.util.concurrent.TimeUnit
  * 4. Support Extended Thinking / Reasoning
  * 5. Support custom headers and authentication methods
  *
- * Reference: X-OmniClaw src/agents/llm-client.ts
+ * Reference: CareClaw src/agents/llm-client.ts
  */
 class UnifiedLLMProvider(private val context: Context) {
 

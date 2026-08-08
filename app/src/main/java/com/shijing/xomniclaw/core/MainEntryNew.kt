@@ -1,11 +1,11 @@
 package com.shijing.xomniclaw.core
 
 /**
- * X-OmniClaw Source Reference:
+ * CareClaw Source Reference:
  * - ../xomniclaw/src/agents/(all)
  * - ../xomniclaw/src/gateway/(all)
  *
- * X-OmniClaw adaptation: main agent execution entry for Android runtime.
+ * CareClaw adaptation: main agent execution entry for Android runtime.
  */
 
 
@@ -241,7 +241,7 @@ object MainEntryNew {
             configLoader = ConfigLoader(application)
             Log.d(TAG, "✓ ConfigLoader initialized")
 
-            // 1. Initialize LLM Provider (unified Provider - supports all X-OmniClaw-compatible APIs)
+            // 1. Initialize LLM Provider (unified Provider - supports all CareClaw-compatible APIs)
             llmProvider = com.shijing.xomniclaw.providers.UnifiedLLMProvider(application)
             Log.d(TAG, "✓ UnifiedLLMProvider initialized (supports multi-model APIs)")
 
@@ -275,7 +275,7 @@ object MainEntryNew {
             )
             Log.d(TAG, "✓ AndroidToolRegistry initialized (${androidToolRegistry.getToolCount()} Android tools)")
 
-            // 5. Initialize context builder (X-OmniClaw style)
+            // 5. Initialize context builder (CareClaw style)
             contextBuilder = ContextBuilder(
                 context = application,
                 toolRegistry = toolRegistry,
@@ -325,7 +325,7 @@ object MainEntryNew {
             )
             Log.d(TAG, "✓ SessionManager initialized (workspace: ${workspaceDir.absolutePath})")
 
-            // 6. Initialize context manager (X-OmniClaw-aligned context overflow handling)
+            // 6. Initialize context manager (CareClaw-aligned context overflow handling)
             val contextManager = com.shijing.xomniclaw.agent.context.ContextManager(llmProvider)
             Log.d(TAG, "✓ ContextManager initialized")
 
@@ -504,17 +504,17 @@ object MainEntryNew {
         Log.d(TAG, "📋 [Session] History message count: ${session.messageCount()}")
 
         // Get history messages (recent 20) and convert to new format
-        // Aligned with X-OmniClaw: limitHistoryTurns (by user turn count)
+        // Aligned with CareClaw: limitHistoryTurns (by user turn count)
         // 1. Fetch all session messages
         // 2. Apply limitHistoryTurns with configurable dmHistoryLimit
         // 3. Context pruning in AgentLoop handles the rest
-        // Aligned with X-OmniClaw: getHistoryLimitFromSessionKey → limitHistoryTurns
+        // Aligned with CareClaw: getHistoryLimitFromSessionKey → limitHistoryTurns
         // 1. Read dmHistoryLimit from config (per-channel, per-user)
         // 2. If not configured → no truncation (undefined → limitHistoryTurns returns all)
         // 3. AgentLoop's context pruning (soft trim / hard clear) handles oversized context
         val dmHistoryLimit: Int? = null
 
-        // Aligned with X-OmniClaw: if dmHistoryLimit not configured, send all history
+        // Aligned with CareClaw: if dmHistoryLimit not configured, send all history
         // AgentLoop's context pruning (pruneHistoryForContextShare-aligned) handles oversized context
         val allMessages = if (dmHistoryLimit != null && dmHistoryLimit > 0) {
             val raw = session.getRecentMessages(dmHistoryLimit * 4).map { it.toNewMessage() }
@@ -1547,7 +1547,7 @@ object MainEntryNew {
                         Intent.FLAG_ACTIVITY_SINGLE_TOP
                 )
                 application.startActivity(launchIntent)
-                Log.d(TAG, "📲 Brought X-OmniClaw main UI to foreground")
+                Log.d(TAG, "📲 Brought CareClaw main UI to foreground")
             } else {
                 Log.w(TAG, "Launch intent not found for package ${application.packageName}")
             }

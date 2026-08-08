@@ -4,7 +4,7 @@ package com.shijing.xomniclaw.accessibility
  * Upstream reference (OmniClaw):
  * - ../omniclaw/src/gateway/(all)
  *
- * X-OmniClaw adaptation: observer permission and projection flow.
+ * CareClaw adaptation: observer permission and projection flow.
  */
 
 
@@ -345,7 +345,7 @@ class PermissionActivity : Activity() {
 
                     步骤:
                     1. 点击"去设置"按钮
-                    2. 选择已下载的应用，找到X-OmniClaw
+                    2. 选择已下载的应用，找到CareClaw
                     3. 开启服务开关
                     4. 授予权限
                 """.trimIndent()

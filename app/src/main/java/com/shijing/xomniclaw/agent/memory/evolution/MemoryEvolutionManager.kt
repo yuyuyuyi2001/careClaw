@@ -32,7 +32,7 @@ class MemoryEvolutionManager(
         private const val PENDING_EVENTS_FILE = ".memory-evolution-pending.jsonl"
         private const val MAX_EVENT_TEXT_CHARS = 1200
         private const val MAX_CANDIDATE_TEXT_CHARS = 280
-        private const val DEFAULT_MEMORY_HEADER = "# X-OmniClaw 全局记忆"
+        private const val DEFAULT_MEMORY_HEADER = "# CareClaw 全局记忆"
         private val TIME_FORMAT = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
 
         fun shouldSkipRunRecording(userInput: String): Boolean {
@@ -179,7 +179,7 @@ class MemoryEvolutionManager(
             candidates += MemoryCandidate(
                 category = MemoryCategory.TASK_WORKFLOW,
                 title = summarizeTitle(event.userInput),
-                content = "用户曾使用 X-OmniClaw 完成：${event.userInput.take(MAX_CANDIDATE_TEXT_CHARS)}。结果摘要：${event.finalContent.take(MAX_CANDIDATE_TEXT_CHARS)}",
+                content = "用户曾使用 CareClaw 完成：${event.userInput.take(MAX_CANDIDATE_TEXT_CHARS)}。结果摘要：${event.finalContent.take(MAX_CANDIDATE_TEXT_CHARS)}",
                 confidence = 0.68,
                 sourceEventId = event.id
             )
@@ -264,7 +264,7 @@ class MemoryEvolutionManager(
         return buildString {
             appendLine(DEFAULT_MEMORY_HEADER)
             appendLine()
-            appendLine("此文件保存用户使用 X-OmniClaw 执行任务过程中沉淀的长期记忆。")
+            appendLine("此文件保存用户使用 CareClaw 执行任务过程中沉淀的长期记忆。")
             appendLine("相册内容写入 memory/IMAGE-MEMORY.md；用户画像写入 memory/USER-PROFILE.md。")
             appendLine()
             MemoryCategory.values().forEach { category ->

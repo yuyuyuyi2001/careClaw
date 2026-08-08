@@ -73,7 +73,7 @@ class SessionManager {
      * Create default session
      */
     private fun createDefaultSession(): Session {
-        // Check if it's first run - X-OmniClaw style
+        // Check if it's first run - CareClaw style
         val welcomeMessage = getWelcomeMessage()
 
         return Session(
@@ -99,7 +99,7 @@ class SessionManager {
     }
 
     /**
-     * Get welcome message - X-OmniClaw style
+     * Get welcome message - CareClaw style
      *
      * If core workspace bootstrap files are missing, treat it as first run.
      */
