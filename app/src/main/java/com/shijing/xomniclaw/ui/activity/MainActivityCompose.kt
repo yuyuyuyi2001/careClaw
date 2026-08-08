@@ -465,6 +465,20 @@ fun MainScreen(
     var selectedTab by remember { mutableStateOf(MainTab.CHAT) }
     val currentSession by chatViewModel.currentSession.collectAsState()
 
+    // 存储权限（MANAGE_EXTERNAL_STORAGE）：外部存储 workspace 目录（会话/配置/skills 落盘处）依赖它，
+    // 未授权时 mkdirs 静默失败、写会话文件会抛 ENOENT 导致闪退。此处挂提示条并实时刷新。
+    var storagePermissionGranted by remember { mutableStateOf(Environment.isExternalStorageManager()) }
+    val storageLifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(storageLifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                storagePermissionGranted = Environment.isExternalStorageManager()
+            }
+        }
+        storageLifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { storageLifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     // 主对话输入区「语音 / 键盘」与底部 Tab 解耦：切走时 ChatScreen 会离组，态须挂在 MainScreen 才不失忆。
     var isChatVoiceInputMode by rememberSaveable { mutableStateOf(false) }
 
@@ -667,22 +681,77 @@ fun MainScreen(
             }
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues)) {
-            when (selectedTab) {
-                MainTab.CHAT -> ChatTab(
-                    chatViewModel = chatViewModel,
-                    voiceManager = voiceManager,
-                    tts = tts,
-                    isVoiceInputMode = isChatVoiceInputMode,
-                    onVoiceInputModeChange = { isChatVoiceInputMode = it }
+        Column(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
+            // 存储权限提示条：未授权「所有文件访问」时，会话/配置/技能落盘目录不可写（可能静默失败甚至闪退）
+            if (!storagePermissionGranted) {
+                StoragePermissionBanner(
+                    onClickGrant = { openAllFilesAccessSettings(context) }
                 )
-                MainTab.STATUS -> StatusTab(
-                    onNavigateToPermissions = onNavigateToPermissions,
-                    onNavigateToSkills = onNavigateToSkills,
-                    currentSessionId = currentSession.id
-                )
-                MainTab.SETTINGS -> SettingsTab(onNavigateToConfig)
             }
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                when (selectedTab) {
+                    MainTab.CHAT -> ChatTab(
+                        chatViewModel = chatViewModel,
+                        voiceManager = voiceManager,
+                        tts = tts,
+                        isVoiceInputMode = isChatVoiceInputMode,
+                        onVoiceInputModeChange = { isChatVoiceInputMode = it }
+                    )
+                    MainTab.STATUS -> StatusTab(
+                        onNavigateToPermissions = onNavigateToPermissions,
+                        onNavigateToSkills = onNavigateToSkills,
+                        currentSessionId = currentSession.id
+                    )
+                    MainTab.SETTINGS -> SettingsTab(onNavigateToConfig)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 存储权限提示条：显示在对话/状态/设置页顶部。
+ * 未授予「所有文件访问」时，外部存储 workspace 目录不可写，配置保存会静默失败、会话写入会闪退（Android 11+）。
+ * 点击「去授权」跳系统授权页，返回后经 ON_RESUME 自动隐藏。
+ */
+@Composable
+private fun StoragePermissionBanner(onClickGrant: () -> Unit) {
+    Surface(color = MaterialTheme.colorScheme.errorContainer) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = "存储权限",
+                tint = MaterialTheme.colorScheme.onErrorContainer
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "需开启「所有文件访问」，否则会话与配置无法保存",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = onClickGrant) {
+                Text("去授权", color = MaterialTheme.colorScheme.onErrorContainer)
+            }
+        }
+    }
+}
+
+/** 跳转系统「所有文件访问」授权页；厂商 ROM 差异时回退到总设置页。 */
+private fun openAllFilesAccessSettings(context: android.content.Context) {
+    try {
+        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+        intent.data = Uri.parse("package:${context.packageName}")
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        Log.e("MainScreen", "Cannot open file management permission settings page", e)
+        try {
+            context.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+        } catch (e2: Exception) {
+            Log.e("MainScreen", "Cannot open file management permission settings", e2)
         }
     }
 }

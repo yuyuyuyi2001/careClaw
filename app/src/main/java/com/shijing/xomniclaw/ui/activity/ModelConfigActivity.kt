@@ -489,7 +489,16 @@ class ModelConfigActivity : AppCompatActivity() {
                 agents = updatedAgents
             )
 
-            configLoader.saveOmniClawConfig(updatedConfig)
+            val saved = configLoader.saveOmniClawConfig(updatedConfig)
+            if (!saved) {
+                Log.e(TAG, "Failed to save config (storage not writable): provider=$providerKey model=$modelRef")
+                Toast.makeText(
+                    this,
+                    "⚠️ 保存失败：存储不可写。请在系统设置中开启「所有文件访问」权限后重试",
+                    Toast.LENGTH_LONG
+                ).show()
+                return
+            }
 
             Toast.makeText(this, "✅ 已保存: $modelRef", Toast.LENGTH_SHORT).show()
             Log.i(TAG, "Saved provider=$providerKey model=$modelRef")

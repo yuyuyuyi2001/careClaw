@@ -64,9 +64,8 @@ class SessionManager(
     private val gsonPretty: Gson = GsonBuilder().setPrettyPrinting().create()  // For sessions.json index
 
     private val sessionsDir: File = File(workspace, SESSIONS_DIR).apply {
-        if (!exists()) {
-            mkdirs()
-            Log.d(TAG, "Created sessions directory: $absolutePath")
+        if (!exists() && !mkdirs()) {
+            Log.e(TAG, "❌ Failed to create sessions directory: $absolutePath")
         }
     }
 
@@ -236,18 +235,22 @@ class SessionManager(
             updatedAt = timestamp
         )
 
-        // 写入 JSONL header
+        // 写入 JSONL header（目录不可写时不应裸崩：会话仅保留在内存，下次 save 再尝试落盘）
         val jsonlFile = getSessionJSONLFile(sessionId)
-        ensureSessionFileParentExists(jsonlFile)
-        FileOutputStream(jsonlFile, false).use { out ->
-            val header = mapOf(
-                "type" to "session",
-                "version" to 3,
-                "id" to sessionId,
-                "timestamp" to timestamp,
-                "cwd" to workspace.absolutePath
-            )
-            out.write((gson.toJson(header) + "\n").toByteArray())
+        try {
+            ensureSessionFileParentExists(jsonlFile)
+            FileOutputStream(jsonlFile, false).use { out ->
+                val header = mapOf(
+                    "type" to "session",
+                    "version" to 3,
+                    "id" to sessionId,
+                    "timestamp" to timestamp,
+                    "cwd" to workspace.absolutePath
+                )
+                out.write((gson.toJson(header) + "\n").toByteArray())
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "⚠️ 写入会话 JSONL header 失败（目录不可写？），会话仅保留在内存: ${jsonlFile.absolutePath}", e)
         }
 
         // Update index

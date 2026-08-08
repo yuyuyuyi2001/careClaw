@@ -285,10 +285,40 @@ object MainEntryNew {
             Log.d(TAG, "✓ ContextBuilder initialized")
 
             // 5. Initialize session manager (统一使用当前工作目录，避免继续创建旧版 .omniclaw 路径)
-            val workspaceDir = File(Environment.getExternalStorageDirectory(), ".xomniclaw/workspace")
-            if (!workspaceDir.exists()) {
-                workspaceDir.mkdirs()
-                Log.d(TAG, "Created workspace directory: ${workspaceDir.absolutePath}")
+            // 外部存储 /sdcard/.xomniclaw/workspace 依赖 MANAGE_EXTERNAL_STORAGE 权限；
+            // 未授权时 mkdirs 会静默失败，随后写会话文件抛 ENOENT 导致闪退（Android 11+）。
+            // 此处做降级兜底：外部存储不可写时切到 app 内部存储，保证会话功能可用、绝不裸崩。
+            // 真实写探针：createNewFile 走 open() 会触发 AppOps 检查，
+            // 可识别「目录存在但 MANAGE_EXTERNAL_STORAGE 被拒」的假阳性（canWrite 在 sdcardfs 上不可靠）。
+            fun probeWrite(dir: File): Boolean = try {
+                val probe = File(dir, ".write_probe_${System.currentTimeMillis()}")
+                probe.createNewFile()
+                val ok = probe.exists()
+                probe.delete()
+                ok
+            } catch (e: Exception) {
+                false
+            }
+
+            fun ensureWritableDir(dir: File): Boolean = try {
+                (dir.exists() || dir.mkdirs()) && dir.isDirectory && probeWrite(dir)
+            } catch (e: Exception) {
+                Log.e(TAG, "ensureWritableDir failed: $dir", e)
+                false
+            }
+
+            val externalWorkspace = File(Environment.getExternalStorageDirectory(), ".xomniclaw/workspace")
+            val workspaceDir = if (ensureWritableDir(externalWorkspace)) {
+                externalWorkspace
+            } else {
+                val fallback = File(application.filesDir, ".xomniclaw/workspace")
+                if (ensureWritableDir(fallback)) {
+                    Log.w(TAG, "⚠️ 外部存储不可写（可能未授予「所有文件访问」权限），SessionManager 降级到内部存储: $fallback")
+                    fallback
+                } else {
+                    Log.e(TAG, "❌ 内部存储也不可写，回退外部存储路径: $externalWorkspace")
+                    externalWorkspace
+                }
             }
             sessionManager = SessionManager(
                 workspace = workspaceDir
