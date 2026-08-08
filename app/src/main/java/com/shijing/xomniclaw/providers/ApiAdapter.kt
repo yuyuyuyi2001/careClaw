@@ -173,7 +173,7 @@ object ApiAdapter {
 
         json.put("model", model.id)
         json.put("max_tokens", maxTokens ?: model.maxTokens)
-        json.put("temperature", temperature)
+        json.put("temperature", model.temperature ?: temperature)
 
         // Convert message format
         val anthropicMessages = JSONArray()
@@ -670,7 +670,7 @@ object ApiAdapter {
         val json = JSONObject()
 
         json.put("model", model.id)
-        json.put("temperature", temperature)
+        json.put("temperature", model.temperature ?: temperature)
 
         // maxTokens field name (based on compatibility config + safe defaults)
         val modelIdLower = model.id.lowercase()
@@ -933,7 +933,7 @@ object ApiAdapter {
     ): JSONObject {
         val json = JSONObject()
         json.put("model", model.id)
-        json.put("temperature", temperature)
+        json.put("temperature", model.temperature ?: temperature)
         json.put("max_output_tokens", maxTokens ?: model.maxTokens)
 
         val input = JSONArray()

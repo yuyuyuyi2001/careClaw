@@ -477,7 +477,8 @@ class ConfigLoader(private val context: Context) {
             contextWindow = json.optInt("contextWindow", 128000),
             maxTokens = json.optInt("maxTokens", 8192),
             headers = headers,
-            compat = compatWithDefaults
+            compat = compatWithDefaults,
+            temperature = if (json.has("temperature")) json.optDouble("temperature") else null
         )
     }
 

@@ -39,7 +39,9 @@ data class ModelDefinition(
     val contextWindow: Int = 128000,
     val maxTokens: Int = 8192,
     val headers: Map<String, String>? = null,
-    val compat: ModelCompatConfig? = null
+    val compat: ModelCompatConfig? = null,
+    /** 模型级采样温度覆盖；部分推理模型（如 Kimi K2.5）要求固定值，null 时回退全局默认。 */
+    val temperature: Double? = null
 )
 
 data class ModelCompatConfig(
