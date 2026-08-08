@@ -185,7 +185,8 @@ private suspend fun queryPermissionSnapshot(context: Context): PermissionSnapsho
         val serviceAvailable =
             com.shijing.xomniclaw.accessibility.service.AccessibilityBinderService.serviceInstance != null
         val accessibilityVal = systemEnabled || serviceAvailable || serviceReady
-        val screenCaptureVal = if (serviceAvailable) proxy.isMediaProjectionGranted() else false
+        // 录屏状态以 MediaProjection 授权为准，不依赖无障碍服务可用性（两者相互独立）
+        val screenCaptureVal = com.shijing.xomniclaw.accessibility.MediaProjectionHelper.isAuthorized()
         val albumVal = hasAlbumPermission(context)
         val allFilesVal = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Environment.isExternalStorageManager()
@@ -1894,8 +1895,8 @@ fun PermissionsCard(onClick: () -> Unit) {
                     com.shijing.xomniclaw.accessibility.service.AccessibilityBinderService.serviceInstance != null
 
                 val accessibilityVal = systemEnabled || serviceAvailable || serviceReady
-                val screenCaptureVal =
-                    if (serviceAvailable) proxy.isMediaProjectionGranted() else false
+                // 录屏状态以 MediaProjection 授权为准，不依赖无障碍服务可用性
+                val screenCaptureVal = com.shijing.xomniclaw.accessibility.MediaProjectionHelper.isAuthorized()
                 val albumVal = hasAlbumPermission(context)
                 val allFilesVal = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     Environment.isExternalStorageManager()
