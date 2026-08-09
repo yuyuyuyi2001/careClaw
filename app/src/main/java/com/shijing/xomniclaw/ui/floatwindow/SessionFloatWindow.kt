@@ -197,14 +197,18 @@ object SessionFloatWindow {
      * Destroy floating window
      */
     private fun dismissFloatWindow() {
-        try {
-            if (EasyFloat.isShow(FLOAT_TAG)) {
-                EasyFloat.dismiss(FLOAT_TAG)
-                stepIndicatorTextView = null
-                Log.d(TAG, "Float window dismissed")
+        // EasyFloat.dismiss 内部走 Animator 动画，必须在主线程（Looper）调用，
+        // 否则抛 "Animators may only be run on Looper threads"（任务收尾时悬浮窗无法关闭）。
+        mainHandler.post {
+            try {
+                if (EasyFloat.isShow(FLOAT_TAG)) {
+                    EasyFloat.dismiss(FLOAT_TAG)
+                    stepIndicatorTextView = null
+                    Log.d(TAG, "Float window dismissed")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to dismiss float window", e)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to dismiss float window", e)
         }
     }
 
