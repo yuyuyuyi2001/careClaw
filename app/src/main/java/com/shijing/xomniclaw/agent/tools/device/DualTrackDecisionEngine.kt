@@ -14,14 +14,9 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.ArrayDeque
 import java.util.Date
-import java.util.LinkedHashMap
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.math.sqrt
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -68,20 +63,6 @@ private data class SemanticMapping(
     var updatedAt: Long
 )
 
-private data class PrewarmCandidate(
-    val label: String,
-    val x: Int,
-    val y: Int,
-    val confidence: Double
-)
-
-private data class PrewarmResult(
-    val screenSignature: String,
-    val packageName: String,
-    val createdAt: Long,
-    val candidates: List<PrewarmCandidate>
-)
-
 /**
  * Dual-track perception decision engine:
  * - StructuredProvider (UI tree): fast + precise
@@ -97,9 +78,6 @@ class DualTrackDecisionEngine(private val context: Context) {
         private const val MEMORY_RADIUS_PX = 160
         private const val MEMORY_TTL_MS = 12 * 60 * 60 * 1000L
         private const val MAX_MEMORY_ENTRIES = 220
-        private const val PREWARM_CACHE_SIZE = 8
-        private const val PREWARM_TTL_MS = 15_000L
-        private const val PREWARM_MIN_INTERVAL_MS = 1_200L
         private const val AVOID_RADIUS_PX = 76
         private const val SCREENSHOT_JPEG_QUALITY = 86
         /** 与 `xomniclaw.json.default.txt` 中 vlm 默认模型 id 对齐 */
@@ -112,19 +90,14 @@ class DualTrackDecisionEngine(private val context: Context) {
         .writeTimeout(30, TimeUnit.SECONDS)
         .readTimeout(40, TimeUnit.SECONDS)
         .build()
-    private val prewarmScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val semanticMemory = ArrayDeque<SemanticMapping>(MAX_MEMORY_ENTRIES + 1)
     private val semanticMemoryLock = Any()
-    private val prewarmCache = LinkedHashMap<String, PrewarmResult>(PREWARM_CACHE_SIZE + 1, 0.75f, true)
-    private val prewarmLock = Any()
-    @Volatile private var lastPrewarmScheduleMs: Long = 0L
-    @Volatile private var lastPrewarmSignature: String = ""
 
     /**
      * Resolve semantic tap target using:
      * 1) semantic memory alignment
      * 2) structured UI grounding
-     * 3) VLM compensation (prewarm cache first, then on-demand)
+     * 3) VLM compensation (on-demand; prewarm 缓存子系统已随 L1 删除)
      */
     suspend fun resolveTapTarget(
         target: String,
@@ -172,8 +145,6 @@ class DualTrackDecisionEngine(private val context: Context) {
                 screenW = screenW,
                 screenH = screenH,
                 vlmProvider = vlmProvider,
-                screenSignature = screenSignature,
-                currentPackage = currentPackage,
                 avoidCoordinates = avoidCoordinates
             )
         } else {
@@ -184,57 +155,6 @@ class DualTrackDecisionEngine(private val context: Context) {
         val finalDecision = chooseFinalDecision(structured, fusedVisual, preferVisual)
         rememberSemanticAlignment(semanticTarget, finalDecision, viewNodes, currentPackage, screenSignature)
         return finalDecision
-    }
-
-    /**
-     * Snapshot-time async VLM prewarm:
-     * - Runs in background
-     * - Does not block snapshot response
-     * - Produces candidate hotspots cache for fast fallback
-     */
-    fun warmupOnSnapshotAsync(snapshotId: String, packageName: String, viewNodes: List<ViewNode>) {
-        val currentPackage = packageName.ifBlank { dominantPackage(viewNodes) }
-        val signature = computeScreenSignature(viewNodes, currentPackage)
-        val now = System.currentTimeMillis()
-        if (signature == lastPrewarmSignature && now - lastPrewarmScheduleMs < PREWARM_MIN_INTERVAL_MS) {
-            return
-        }
-        lastPrewarmSignature = signature
-        lastPrewarmScheduleMs = now
-
-        val vlmProvider = loadVlmProviderConfig()
-        if (vlmProvider == null || !hasVlmCredentials(vlmProvider)) return
-
-        prewarmScope.launch {
-            try {
-                val screenshot = captureCurrentScreenJpeg() ?: return@launch
-                val dm = context.resources.displayMetrics
-                val summary = buildUiSummary(viewNodes, dm.widthPixels, dm.heightPixels)
-                val candidates = callVlmPrewarmCandidates(
-                    screenshotJpeg = screenshot,
-                    uiSummary = summary,
-                    vlmProvider = vlmProvider
-                )
-                if (candidates.isEmpty()) return@launch
-
-                val result = PrewarmResult(
-                    screenSignature = signature,
-                    packageName = currentPackage,
-                    createdAt = System.currentTimeMillis(),
-                    candidates = candidates
-                )
-                synchronized(prewarmLock) {
-                    prewarmCache[signature] = result
-                    while (prewarmCache.size > PREWARM_CACHE_SIZE) {
-                        val oldestKey = prewarmCache.entries.firstOrNull()?.key ?: break
-                        prewarmCache.remove(oldestKey)
-                    }
-                }
-                Log.d(TAG, "Prewarm ready snapshot=$snapshotId pkg=$currentPackage candidates=${candidates.size}")
-            } catch (e: Exception) {
-                Log.w(TAG, "Prewarm failed: ${e.message}")
-            }
-        }
     }
 
     /**
@@ -566,17 +486,8 @@ class DualTrackDecisionEngine(private val context: Context) {
         screenW: Int,
         screenH: Int,
         vlmProvider: ProviderConfig,
-        screenSignature: String,
-        currentPackage: String,
         avoidCoordinates: List<Pair<Int, Int>>
     ): VisualGrounding? {
-        findBestPrewarmCandidate(
-            target = target,
-            screenSignature = screenSignature,
-            currentPackage = currentPackage,
-            avoidCoordinates = avoidCoordinates
-        )?.let { return it }
-
         return try {
             val uiSummary = buildUiSummary(nodes, screenW, screenH)
             val content = callVlmGrounding(
@@ -734,81 +645,6 @@ class DualTrackDecisionEngine(private val context: Context) {
         }
     }
 
-    private fun callVlmPrewarmCandidates(
-        screenshotJpeg: ByteArray,
-        uiSummary: String,
-        vlmProvider: ProviderConfig
-    ): List<PrewarmCandidate> {
-        val imageB64 = Base64.encodeToString(screenshotJpeg, Base64.NO_WRAP)
-        val systemPrompt = """
-            You are a visual prewarm extractor for Android UI automation.
-            Return JSON only with this schema:
-            {"candidates":[{"label":"...","x":123,"y":456,"confidence":0.0}]}
-            Include 8-14 high-value actionable targets (back, close, skip, search, send, confirm).
-            Confidence range must be 0~1.
-        """.trimIndent()
-        val userText = buildString {
-            append("Extract candidate actionable targets from this screen.\n")
-            append("UI summary:\n").append(uiSummary.take(7000))
-        }
-
-        val rawMessages = JSONArray()
-        rawMessages.put(JSONObject().put("role", "system").put("content", systemPrompt))
-        val userParts = JSONArray()
-        userParts.put(JSONObject().put("type", "text").put("text", userText))
-        userParts.put(
-            JSONObject().put("type", "image_url")
-                .put("image_url", JSONObject().put("url", "data:image/jpeg;base64,$imageB64"))
-        )
-        rawMessages.put(JSONObject().put("role", "user").put("content", userParts))
-
-        val modelId = vlmProvider.models.firstOrNull()?.id?.ifBlank { DEFAULT_VLM_MODEL_ID } ?: DEFAULT_VLM_MODEL_ID
-        val payload = JSONObject()
-            .put("model", modelId)
-            .put("messages", rawMessages)
-            .put("max_tokens", 700)
-        val body = payload.toString()
-        val chatUrl = appendChatCompletionsPath(vlmProvider.baseUrl.trimEnd('/'))
-        val apiKey = vlmProvider.apiKey?.trim().orEmpty()
-
-        val req = Request.Builder()
-            .url(chatUrl)
-            .addHeader("Content-Type", "application/json")
-            .apply {
-                if (apiKey.isNotBlank()) addHeader("Authorization", "Bearer $apiKey")
-            }
-            .post(body.toRequestBody("application/json; charset=utf-8".toMediaType()))
-            .build()
-
-        http.newCall(req).execute().use { resp ->
-            val raw = resp.body?.string() ?: ""
-            if (!resp.isSuccessful) return emptyList()
-            val root = JSONObject(raw)
-            if (root.has("code") && root.optInt("code", 0) != 0) return emptyList()
-            val data = root.optJSONObject("data") ?: root
-            val choices = data.optJSONArray("choices") ?: root.optJSONArray("choices") ?: return emptyList()
-            val msg = choices.optJSONObject(0)?.optJSONObject("message") ?: return emptyList()
-            val content = msg.optString("content", "")
-            return parsePrewarmCandidates(content)
-        }
-    }
-
-    private fun parsePrewarmCandidates(content: String): List<PrewarmCandidate> {
-        val obj = parseFirstJsonObject(content) ?: return emptyList()
-        val arr = obj.optJSONArray("candidates") ?: return emptyList()
-        val out = mutableListOf<PrewarmCandidate>()
-        for (i in 0 until arr.length()) {
-            val c = arr.optJSONObject(i) ?: continue
-            val label = c.optString("label", c.optString("text", "")).trim()
-            val x = c.optInt("x", -1)
-            val y = c.optInt("y", -1)
-            if (label.isBlank() || x < 0 || y < 0) continue
-            val conf = c.optDouble("confidence", 0.55).coerceIn(0.0, 1.0)
-            out += PrewarmCandidate(label = label, x = x, y = y, confidence = conf)
-        }
-        return out
-    }
-
     private fun parseFirstJsonObject(content: String): JSONObject? {
         val trimmed = content.trim()
         if (trimmed.startsWith("{")) {
@@ -816,55 +652,6 @@ class DualTrackDecisionEngine(private val context: Context) {
         }
         val jsonText = JSON_BLOCK_RE.find(trimmed)?.value ?: return null
         return try { JSONObject(jsonText) } catch (_: Exception) { null }
-    }
-
-    private fun findBestPrewarmCandidate(
-        target: String,
-        screenSignature: String,
-        currentPackage: String,
-        avoidCoordinates: List<Pair<Int, Int>>
-    ): VisualGrounding? {
-        val now = System.currentTimeMillis()
-        val prewarm = synchronized(prewarmLock) {
-            val exact = prewarmCache[screenSignature]
-            if (exact != null && now - exact.createdAt <= PREWARM_TTL_MS) {
-                exact
-            } else {
-                prewarmCache.values
-                    .asSequence()
-                    .filter { now - it.createdAt <= PREWARM_TTL_MS }
-                    .filter { it.packageName == currentPackage }
-                    .maxByOrNull { it.createdAt }
-            }
-        } ?: return null
-
-        val targetNorm = normalize(target)
-        if (targetNorm.isBlank()) return null
-        var best: PrewarmCandidate? = null
-        var bestScore = 0.0
-        for (c in prewarm.candidates) {
-            if (isNearAny(c.x, c.y, avoidCoordinates)) continue
-            val labelNorm = normalize(c.label)
-            val sim = when {
-                labelNorm == targetNorm -> 1.0
-                labelNorm.contains(targetNorm) || targetNorm.contains(labelNorm) -> 0.88
-                else -> charOverlap(targetNorm, labelNorm)
-            }
-            val score = sim * 0.78 + c.confidence * 0.22
-            if (score > bestScore) {
-                best = c
-                bestScore = score
-            }
-        }
-        val chosen = best ?: return null
-        if (bestScore < 0.58) return null
-        return VisualGrounding(
-            x = chosen.x,
-            y = chosen.y,
-            confidence = (chosen.confidence + 0.04).coerceAtMost(0.95),
-            reason = "prewarm candidate match label='${chosen.label}' score=${"%.2f".format(bestScore)}",
-            origin = "prewarm"
-        )
     }
 
     /**

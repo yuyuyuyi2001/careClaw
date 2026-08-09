@@ -40,7 +40,6 @@ class NavigationSkill(private val context: Context) : Skill {
             const val MAIN = "main"                    // 主界面
             const val CONFIG = "config"                // 配置页面
             const val PERMISSIONS = "permissions"      // 权限管理
-            const val SKILLS = "skills"                // 技能列表
         }
     }
 
@@ -53,7 +52,6 @@ class NavigationSkill(private val context: Context) : Skill {
         - main: 主界面
         - config: 配置页面（API、模型设置）
         - permissions: 权限管理页面
-        - skills: 技能列表页面
 
         使用场景：
         - 修改应用配置
@@ -78,8 +76,7 @@ class NavigationSkill(private val context: Context) : Skill {
                             enum = listOf(
                                 Pages.MAIN,
                                 Pages.CONFIG,
-                                Pages.PERMISSIONS,
-                                Pages.SKILLS
+                                Pages.PERMISSIONS
                             )
                         ),
                         "extras" to PropertySchema(
@@ -139,8 +136,7 @@ class NavigationSkill(private val context: Context) : Skill {
         val className = when (page) {
             Pages.MAIN -> "$packageName.ui.activity.MainActivityCompose"
             Pages.CONFIG -> "$packageName.ui.activity.ModelConfigActivity"
-            Pages.PERMISSIONS -> "$packageName.ui.activity.PermissionsActivity"
-            Pages.SKILLS -> "$packageName.ui.activity.SkillsActivity"
+            Pages.PERMISSIONS -> "$packageName.accessibility.PermissionActivity"
             else -> return null
         }
 

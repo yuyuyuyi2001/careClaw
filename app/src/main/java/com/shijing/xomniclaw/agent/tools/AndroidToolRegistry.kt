@@ -63,14 +63,12 @@ class AndroidToolRegistry(
         register(ListGalleryImagesSkill(context))   // MediaStore recent images (album / URI / meta)
         register(CopyImagesToAlbumSkill(context))   // Copy URIs into new Pictures/<album>/ folder
         register(InstallAppSkill(context))         // Install APK
-        register(StartActivityTool(context))       // Start Activity
         register(GalleryMemorySkill(context))      // Gallery -> memory -> user profile
         register(MemoryEvolutionSkill(context))    // Task memories -> MEMORY.md -> user profile
 
         // === Control tools ===
         register(StopSkill(taskDataManager)) // Stop
         register(EmergencyStopSkill(taskDataManager)) // 一键停止（安全层）
-        register(LogSkill())                 // Log
         register(SystemSettingsSkill(context)) // System settings: Bluetooth, WiFi, Airplane mode, etc.
 
         // === Self-Control tools（自我管理：查配置/日志、导航页面、控制悬浮窗）===

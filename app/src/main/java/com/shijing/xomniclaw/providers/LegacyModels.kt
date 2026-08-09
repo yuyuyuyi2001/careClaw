@@ -19,23 +19,12 @@ import com.google.gson.annotations.SerializedName
 
 data class LegacyMessage(
     val role: String,  // "system", "user", "assistant", "tool"
-    val content: Any?,  // String or List<ContentBlock>
+    val content: Any?,  // String
     val name: String? = null,  // tool name for tool role
     @SerializedName("tool_call_id")
     val toolCallId: String? = null,  // for tool role
     @SerializedName("tool_calls")
     val toolCalls: List<LegacyToolCall>? = null  // for assistant with tool calls
-)
-
-data class ContentBlock(
-    val type: String,  // "text", "image_url"
-    val text: String? = null,
-    @SerializedName("image_url")
-    val imageUrl: ImageUrl? = null
-)
-
-data class ImageUrl(
-    val url: String  // base64 data URL
 )
 
 data class LegacyToolCall(
@@ -76,42 +65,4 @@ data class PropertySchema(
     val properties: Map<String, PropertySchema>? = null  // for object type
 )
 
-// ============= Response Models =============
-
-data class LegacyResponse(
-    val id: String,
-    val model: String,
-    val choices: List<LegacyChoice>,
-    val usage: LegacyUsage? = null,
-    val created: Long? = null,
-    @SerializedName("object")
-    val objectType: String = "chat.completion"
-)
-
-data class LegacyChoice(
-    val index: Int = 0,
-    val message: LegacyResponseMessage,
-    @SerializedName("finish_reason")
-    val finishReason: String  // "stop", "tool_calls", "length", "error"
-)
-
-data class LegacyResponseMessage(
-    val role: String,
-    val content: String?,
-    @SerializedName("tool_calls")
-    val toolCalls: List<LegacyToolCall>? = null,
-    @SerializedName("reasoning_content")
-    val reasoningContent: String? = null  // Extended Thinking 思考过程
-)
-
-data class LegacyUsage(
-    @SerializedName("prompt_tokens")
-    val promptTokens: Int = 0,
-    @SerializedName("completion_tokens")
-    val completionTokens: Int = 0,
-    @SerializedName("total_tokens")
-    val totalTokens: Int = 0,
-    @SerializedName("reasoning_tokens")
-    val reasoningTokens: Int? = null  // Reasoning 消耗的 token 数
-)
 

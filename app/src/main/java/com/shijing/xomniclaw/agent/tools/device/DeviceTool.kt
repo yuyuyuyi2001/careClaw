@@ -374,8 +374,8 @@ class DeviceTool(private val context: Context) : Tool {
         }
 
         if (viewNodes.isEmpty()) {
-            val accessibilityOn = try { proxy.isConnected.value == true && proxy.isServiceReady() } catch (_: Exception) { false }
-            val status = if (accessibilityOn) "无障碍服务: ✅ 已开启（但当前页面无可识别元素，可能页面正在加载，建议等 1-2 秒重试）" 
+            val accessibilityOn = try { proxy.isServiceReady() } catch (_: Exception) { false }
+            val status = if (accessibilityOn) "无障碍服务: ✅ 已开启（但当前页面无可识别元素，可能页面正在加载，建议等 1-2 秒重试）"
                          else "无障碍服务: ❌ 未开启。请到 设置 → 无障碍 → OmniClaw 开启无障碍权限。"
             return ToolResult.error(status)
         }
@@ -428,7 +428,7 @@ class DeviceTool(private val context: Context) : Tool {
     // ==================== screenshot ====================
 
     private suspend fun executeScreenshot(): ToolResult {
-        // Delegate to existing ScreenshotSkill logic
+        // 截图委托 DeviceController（旧 ScreenshotSkill 已删，由 DeviceTool 统一承载截图）
         val screenshotResult = try {
             val controller = com.shijing.xomniclaw.DeviceController
             controller.getScreenshot(context)
@@ -1336,7 +1336,8 @@ class DeviceTool(private val context: Context) : Tool {
 
     private fun executeStatus(): ToolResult {
         val proxy = AccessibilityProxy
-        val connected = proxy.isConnected.value == true
+        // 用 isServiceReady()（rootInActiveWindow != null）判断真实连接；isConnected.value 只有成功 dumpViewTree 过才为 true，易误判（L1 修复）
+        val connected = proxy.isServiceReady()
         val refCount = refManager.getRefCount()
         val stale = refManager.isStale()
 

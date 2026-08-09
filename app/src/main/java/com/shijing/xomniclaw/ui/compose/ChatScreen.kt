@@ -131,14 +131,6 @@ private val ChatSidebarBg = Color(0xFFF3F4F6)
 private val ChatSurface = Color(0xFFFFFFFF)
 private val ChatDivider = Color(0xFFE5E7EB)
 
-/** 以横向条展示的「工具/思考」类时间线，与普通气泡区分 */
-private val TimelineBarKinds = setOf(
-    ChatMessageKind.TOOL_CALL,
-    ChatMessageKind.TOOL_RESULT,
-    ChatMessageKind.THINKING,
-    ChatMessageKind.BLOCK_REPLY,
-    ChatMessageKind.ERROR
-)
 /** 主界面不展示的消息类型：工具调用与工具结果。 */
 private val HiddenInMainTimelineKinds = setOf(
     ChatMessageKind.TOOL_CALL,
@@ -232,7 +224,6 @@ fun ChatScreen(
     onRunningTaskClick: (String) -> Unit = {},
     onNewSession: () -> Unit = {},
     onDeleteSession: (String) -> Unit = {},
-    onCheckUpdate: (() -> Unit)? = null,
     onStopAgent: (() -> Unit)? = null,
     /** 由上层（如 MainScreen）持有，避免切换底部导航后 ChatScreen 重进时丢失「语音/键盘」态。 */
     isVoiceMode: Boolean,
@@ -587,78 +578,6 @@ fun ChatScreen(
 // ============================================================================
 
 // ============================================================================
-// 工具/思考类时间线：可折叠横条
-// ============================================================================
-
-@Composable
-private fun ExpandableToolTimelineItem(
-    message: ChatMessage,
-    modifier: Modifier = Modifier
-) {
-    var expanded by remember(message.id) { mutableStateOf(false) }
-    val (_, textColor) = messageColors(message)
-    val label = messageTimelineLabel(message.kind) ?: "步骤"
-    val cleaned = remember(message.content) { ChatMediaParser.extract(message.content).cleanedText }
-    val oneLine = cleaned.lines().firstOrNull()?.take(120) ?: ""
-
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-    ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = !expanded },
-            shape = RoundedCornerShape(10.dp),
-            color = Color(0xFFF9FAFB),
-            border = BorderStroke(1.dp, Color(0xFFE5E7EB))
-        ) {
-            Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Build,
-                        contentDescription = null,
-                        tint = ChatPurple,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = label,
-                        modifier = Modifier.weight(1f),
-                        style = TextStyle(
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF374151)
-                        )
-                    )
-                    Icon(
-                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = null,
-                        tint = Color(0xFF9CA3AF),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                if (expanded) {
-                    Text(
-                        text = parseMarkdown(cleaned, textColor),
-                        style = TextStyle(fontSize = 14.sp, lineHeight = 20.sp)
-                    )
-                } else {
-                    Text(
-                        text = oneLine,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(fontSize = 13.sp, color = Color(0xFF6B7280))
-                    )
-                }
-            }
-        }
-    }
-}
-
-// ============================================================================
 // Message Item with Markdown + Collapse + Long-press Copy
 // ============================================================================
 
@@ -668,11 +587,6 @@ fun MessageItem(
     message: ChatMessage,
     modifier: Modifier = Modifier
 ) {
-    if (!message.isUser && message.kind in TimelineBarKinds) {
-        ExpandableToolTimelineItem(message, modifier)
-        return
-    }
-
     val context = LocalContext.current
     val parsedMedia = remember(message.content) { ChatMediaParser.extract(message.content) }
     val isLong = parsedMedia.cleanedText.length > COLLAPSE_THRESHOLD

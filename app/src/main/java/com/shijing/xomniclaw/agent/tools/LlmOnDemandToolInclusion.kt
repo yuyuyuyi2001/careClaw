@@ -10,21 +10,15 @@ object LlmOnDemandToolInclusion {
 
     val ON_DEMAND_LLM_TOOL_NAMES: Set<String> = setOf(
         // ===== Universal tools =====
+        // read_file 保留（SKILL.md 技能热加载核心）；write_file/edit_file/list_dir/exec/web_fetch 已删（L1）
         "read_file",
-        "write_file",
-        "edit_file",
-        "list_dir",
-        "exec",
-        "web_fetch",
         "config_get",
         "config_set",
 
         // ===== Android / memory tools =====
         "device",
         "list_installed_apps",
-        "start_activity",
         "stop",
-        "log",
         "image_memory_search_entries",
         "schedule_app_task",
         "gallery_memory",
@@ -95,13 +89,9 @@ object LlmOnDemandToolInclusion {
         val out = mutableSetOf<String>()
 
         if (wantsUniversalFileOps(u, uLow)) {
+            // 通用工具只剩 read_file（技能热加载/读技能文件），写/编辑/列目录/exec/web_fetch 已删（L1）
             out.add("read_file")
-            out.add("write_file")
-            out.add("edit_file")
-            out.add("list_dir")
         }
-        if (wantsUniversalExec(u, uLow)) out.add("exec")
-        if (wantsUniversalWebFetch(u, uLow)) out.add("web_fetch")
         if (wantsUniversalConfigOps(u, uLow)) {
             out.add("config_get")
             out.add("config_set")
@@ -109,11 +99,7 @@ object LlmOnDemandToolInclusion {
 
         if (wantsDeviceOps(u, uLow)) out.add("device")
         if (wantsListInstalledApps(u, uLow)) out.add("list_installed_apps")
-        if (wantsStartActivity(u, uLow)) out.add("start_activity")
-        if (wantsStopOrLog(u, uLow)) {
-            out.add("stop")
-            out.add("log")
-        }
+        if (wantsStop(u, uLow)) out.add("stop")
 
         if (wantsImageMemorySearchEntries(sys, u, low)) out.add("image_memory_search_entries")
         if (wantsMemoryGetSearch(u, low, sys)) {
@@ -148,20 +134,6 @@ object LlmOnDemandToolInclusion {
         return false
     }
 
-    private fun wantsUniversalExec(u: String, low: String): Boolean {
-        if (u.contains("命令") || u.contains("终端") || u.contains("shell") || u.contains("执行")) return true
-        if (low.contains("powershell") || low.contains("bash") || low.contains("cmd ") || low.contains("exec(")) return true
-        if (low.contains("exec tool") || low.contains("run command")) return true
-        return false
-    }
-
-    private fun wantsUniversalWebFetch(u: String, low: String): Boolean {
-        if (u.contains("网页") || u.contains("网址") || u.contains("链接") || u.contains("抓取")) return true
-        if (low.contains("http://") || low.contains("https://")) return true
-        if (low.contains("web_fetch") || low.contains("fetch url")) return true
-        return false
-    }
-
     private fun wantsUniversalConfigOps(u: String, low: String): Boolean {
         if (u.contains("配置") || u.contains("config") || (u.contains("设置") && (u.contains("读取") || u.contains("修改")))) return true
         if (low.contains("config_get") || low.contains("config_set")) return true
@@ -184,16 +156,9 @@ object LlmOnDemandToolInclusion {
         return false
     }
 
-    private fun wantsStartActivity(u: String, low: String): Boolean {
-        if (u.contains("activity") || u.contains("组件") || u.contains("component") || u.contains("启动页面")) return true
-        if (low.contains("start_activity") || low.contains("am start")) return true
-        return false
-    }
-
-    private fun wantsStopOrLog(u: String, low: String): Boolean {
+    private fun wantsStop(u: String, low: String): Boolean {
         if (u.contains("停止") || u.contains("终止") || u.contains("取消任务")) return true
-        if (u.contains("日志") || u.contains("记录")) return true
-        if (low.contains("stop(") || low.contains("log(") || low.contains("tool stop")) return true
+        if (low.contains("stop(") || low.contains("tool stop")) return true
         return false
     }
 

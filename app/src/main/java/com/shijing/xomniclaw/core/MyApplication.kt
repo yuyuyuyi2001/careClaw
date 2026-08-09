@@ -48,6 +48,7 @@ import com.shijing.xomniclaw.agent.context.ContextBuilder
 import com.shijing.xomniclaw.agent.loop.AgentLoop
 import com.shijing.xomniclaw.agent.loop.ProgressUpdate
 import com.shijing.xomniclaw.providers.UnifiedLLMProvider
+import com.shijing.xomniclaw.ui.activity.MainActivityCompose
 
 /**
  */
@@ -127,21 +128,30 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
         }
 
         /**
-         * Handle messages from ChatBroadcastReceiver
-         * Send local broadcast for MainActivityCompose to handle
+         * Handle messages from ChatBroadcastReceiver / GatewayHttp
+         *
+         * 修复死链路：旧实现发一条无人接收的本地广播 CHAT_MESSAGE_FROM_BROADCAST
+         * （MainActivityCompose 从未注册监听它），导致主界面不在前台时消息直接丢失。
+         * 现在改为智能路由：
+         * - 主界面存活：MainActivityCompose 动态注册的 ChatBroadcastReceiver 已把消息喂给聊天界面并执行，
+         *   此处跳过，避免重复执行；
+         * - 主界面不在：由本入口兜底直接进入后台 Agent 执行，进度/结果通过通知呈现。
          */
         fun handleChatBroadcast(message: String) {
             Log.d(TAG, "📨 handleChatBroadcast: $message")
             try {
-                // Send local broadcast for MainActivityCompose to handle
-                val intent = Intent("com.shijing.xomniclaw.CHAT_MESSAGE_FROM_BROADCAST")
-                intent.putExtra("message", message)
-                androidx.localbroadcastmanager.content.LocalBroadcastManager
-                    .getInstance(application)
-                    .sendBroadcast(intent)
-                Log.d(TAG, "✅ 已发送本地广播")
+                if (!MainActivityCompose.isActivityAlive) {
+                    Log.d(TAG, "主界面不在前台，直接进入后台 Agent 执行")
+                    MainEntryNew.runWithSession(
+                        userInput = message,
+                        sessionId = null,
+                        application = application
+                    )
+                } else {
+                    Log.d(TAG, "主界面存活，由 MainActivityCompose 动态接收器处理，跳过重复执行")
+                }
             } catch (e: Exception) {
-                Log.e(TAG, "发送本地广播失败: ${e.message}", e)
+                Log.e(TAG, "handleChatBroadcast 处理失败: ${e.message}", e)
             }
         }
     }

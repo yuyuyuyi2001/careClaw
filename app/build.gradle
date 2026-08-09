@@ -62,7 +62,6 @@ android {
             minifyEnabled false
             shrinkResources false
             // 完全关闭混淆和压缩 - 不使用proguardFiles
-            buildConfigField 'Boolean', 'ANTI_PIRACY', 'false'
 
             // Release版本配置标记
             buildConfigField 'Boolean', 'IS_SYSTEM_APP', 'true'
@@ -81,7 +80,6 @@ android {
             minifyEnabled false
             shrinkResources false
             signingConfig signingConfigs.debug
-            buildConfigField 'Boolean', 'ANTI_PIRACY', DEBUG_ANTIPIRACY
 
             // Debug版本配置标记
             buildConfigField 'Boolean', 'IS_SYSTEM_APP', 'false'

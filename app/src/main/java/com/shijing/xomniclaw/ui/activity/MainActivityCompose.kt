@@ -67,8 +67,6 @@ import com.shijing.xomniclaw.agent.memory.gallery.GalleryMemorySettingsStore
 import com.shijing.xomniclaw.agent.memory.gallery.GalleryMemorySyncStatus
 import com.shijing.xomniclaw.agent.memory.gallery.GalleryMemorySyncStatusStore
 import com.shijing.xomniclaw.agent.memory.gallery.GalleryMemoryWorkflow
-import com.shijing.xomniclaw.agent.tools.device.DeviceToolSettings
-import com.shijing.xomniclaw.agent.tools.device.DeviceToolSettingsStore
 import com.shijing.xomniclaw.config.ConfigLoader
 import com.shijing.xomniclaw.core.MainEntryNew
 import kotlinx.coroutines.CancellationException
@@ -236,6 +234,7 @@ class MainActivityCompose : ComponentActivity() {
     }
 
     private fun launchObserverPermissionActivity() {
+        // 直连无障碍权限引导页（原 PermissionsActivity 转发壳已删，见 L1）
         try {
             startActivity(Intent().apply {
                 component = android.content.ComponentName(
@@ -244,14 +243,21 @@ class MainActivityCompose : ComponentActivity() {
                 )
             })
         } catch (e: Exception) {
-            Log.w(TAG, "Observer PermissionActivity unavailable, fallback to local PermissionsActivity", e)
-            startActivity(Intent(this, PermissionsActivity::class.java))
+            Log.w(TAG, "PermissionActivity unavailable", e)
         }
     }
 
     companion object {
         private const val TAG = "MainActivityCompose"
         private const val REQUEST_MANAGE_EXTERNAL_STORAGE = 1001
+        private const val REQUEST_POST_NOTIFICATIONS = 1002
+
+        /**
+         * 主界面是否存活。用于后台广播兜底路由：MyApplication.handleChatBroadcast 在
+         * 主界面不在前台时直接进入后台 Agent 执行（否则消息会因无人接收而丢失）。
+         */
+        @Volatile
+        var isActivityAlive = false
     }
 
     private var chatBroadcastReceiver: ChatBroadcastReceiver? = null
@@ -277,8 +283,14 @@ class MainActivityCompose : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // 标记主界面存活：后台广播兜底执行依赖此标志
+        isActivityAlive = true
+
         // Check and request file management permission
         checkAndRequestStoragePermission()
+
+        // Android 13+ 需要运行时授予通知权限，否则后台进度/结果通知不会显示
+        requestNotificationPermission()
 
         // Best-effort auto-enable accessibility on privileged/root devices.
         lifecycleScope.launch(Dispatchers.IO) {
@@ -301,10 +313,7 @@ class MainActivityCompose : ComponentActivity() {
                 MainScreen(
                     chatViewModel = viewModel,
                     onNavigateToPermissions = {
-                        startActivity(Intent(this, PermissionsActivity::class.java))
-                    },
-                    onNavigateToSkills = {
-                        startActivity(Intent(this, SkillsActivity::class.java))
+                        launchObserverPermissionActivity()
                     },
                     onNavigateToConfig = {
                         Log.d("MainActivityCompose", "Clicked model configuration")
@@ -343,7 +352,24 @@ class MainActivityCompose : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        isActivityAlive = false
         unregisterChatBroadcastReceiver()
+    }
+
+    /**
+     * Android 13+ 运行时请求通知权限（进度/结果通知显示的前提；系统弹窗，不影响演示流程）。
+     */
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissions(
+                    arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                    REQUEST_POST_NOTIFICATIONS
+                )
+            }
+        }
     }
 
     /**
@@ -440,7 +466,6 @@ class MainActivityCompose : ComponentActivity() {
 fun MainScreen(
     chatViewModel: ChatViewModel,
     onNavigateToPermissions: () -> Unit,
-    onNavigateToSkills: () -> Unit,
     onNavigateToConfig: () -> Unit
 ) {
     val context = LocalContext.current
@@ -697,7 +722,6 @@ fun MainScreen(
                     )
                     MainTab.STATUS -> StatusTab(
                         onNavigateToPermissions = onNavigateToPermissions,
-                        onNavigateToSkills = onNavigateToSkills,
                         currentSessionId = currentSession.id
                     )
                     MainTab.SETTINGS -> SettingsTab(onNavigateToConfig)
@@ -955,13 +979,11 @@ fun ChatTab(
 @Composable
 fun StatusTab(
     onNavigateToPermissions: () -> Unit,
-    onNavigateToSkills: () -> Unit = {},
     currentSessionId: String? = null
 ) {
     val context = LocalContext.current
     val tokenUsageStatus by MainEntryNew.tokenUsageStatus.collectAsState()
     val gatewayRunning = remember { mutableStateOf(false) }
-    val skillsCount = remember { mutableStateOf(0) }
     val galleryMemorySettings = remember {
         mutableStateOf(
             GalleryMemorySettingsState(
@@ -1027,16 +1049,6 @@ fun StatusTab(
             gatewayRunning.value = false
             Log.e("StatusTab", "Failed to refresh gateway status", e)
     }
-
-        try {
-            val loader = com.shijing.xomniclaw.agent.skills.SkillsLoader(context)
-            val stats = loader.getStatistics()
-            skillsCount.value = stats.totalSkills
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            Log.e("StatusTab", "Failed to get Skills count", e)
-            skillsCount.value = 0
-        }
 
 
         try {
@@ -1336,25 +1348,6 @@ fun StatusTab(
                     text = if (gatewayRunning.value) "运行中 (ws://0.0.0.0:8765)" else "未运行",
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (gatewayRunning.value) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                )
-            }
-        }
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onNavigateToSkills
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    text = "Skills",
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = if (skillsCount.value > 0) "${skillsCount.value} 个 Skills" else "加载中...",
-                    style = MaterialTheme.typography.bodyMedium
                 )
             }
         }
@@ -1869,55 +1862,8 @@ fun PermissionsCard(onClick: () -> Unit) {
     suspend fun refreshPermissionState() {
             try {
             // Never mutate Compose mutableState from Dispatchers.IO — causes snapshot / crash on tab switch.
-            val snapshot = withContext(Dispatchers.IO) {
-                val overlayVal = Settings.canDrawOverlays(context)
-
-                val systemEnabled = try {
-                    val accessibilityOn = Settings.Secure.getInt(
-                        context.contentResolver,
-                        Settings.Secure.ACCESSIBILITY_ENABLED, 0
-                    ) == 1
-                    if (!accessibilityOn) false
-                    else {
-                        val services = Settings.Secure.getString(
-                            context.contentResolver,
-                            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-                        ) ?: ""
-                        services.contains("com.shijing.xomniclaw")
-                    }
-                } catch (e: Exception) {
-                    false
-                }
-
-                val proxy = com.shijing.xomniclaw.accessibility.AccessibilityProxy
-                val serviceReady = proxy.isServiceReadyAsync()
-                val serviceAvailable =
-                    com.shijing.xomniclaw.accessibility.service.AccessibilityBinderService.serviceInstance != null
-
-                val accessibilityVal = systemEnabled || serviceAvailable || serviceReady
-                // 录屏状态以 MediaProjection 授权为准，不依赖无障碍服务可用性
-                val screenCaptureVal = com.shijing.xomniclaw.accessibility.MediaProjectionHelper.isAuthorized()
-                val albumVal = hasAlbumPermission(context)
-                val allFilesVal = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    Environment.isExternalStorageManager()
-                } else {
-                    true
-                }
-                val microphoneVal = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-                    PackageManager.PERMISSION_GRANTED
-
-                PermissionSnapshot(
-                    overlayVal,
-                    accessibilityVal,
-                    screenCaptureVal,
-                    albumVal,
-                    allFilesVal,
-                    microphoneVal,
-                    systemEnabled,
-                    serviceAvailable,
-                    serviceReady
-                )
-            }
+            // 复用顶层 queryPermissionSnapshot（与 ChatTab 同一套权限检查，避免双份逻辑，L1）
+            val snapshot = queryPermissionSnapshot(context)
             overlay = snapshot.overlay
             accessibility = snapshot.accessibility
             screenCapture = snapshot.screenCapture
@@ -2204,10 +2150,6 @@ fun SettingsTab(
         }
 
         // device(snapshot) 的 YOLO 附加树默认开关
-
-        // Prompt dumps 开关（默认关闭）
-        PromptDumpsSwitch()
-        LlmFullRequestLogcatSwitch()
     }
 
     xomniclawJsonDetail.value?.let { detail ->
@@ -2320,87 +2262,3 @@ private fun VersionInfoCard() {
     }
 }
 
-@Composable
-
-
-fun PromptDumpsSwitch() {
-    val mmkv = remember { MMKV.defaultMMKV() }
-    var isEnabled by remember {
-        // 默认关闭：避免误落盘完整 prompt 造成噪音与隐私风险。
-        mutableStateOf(mmkv.decodeBool(MMKVKeys.PROMPT_DUMPS_ENABLED.key, false))
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Prompt Dumps",
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    text = "将发送给大模型的完整请求落盘到 /sdcard/.xomniclaw/workspace/logs/prompt-dumps/（默认关闭）",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Switch(
-                checked = isEnabled,
-                onCheckedChange = { enabled ->
-                    isEnabled = enabled
-                    mmkv.encode(MMKVKeys.PROMPT_DUMPS_ENABLED.key, enabled)
-                }
-            )
-        }
-    }
-}
-
-@Composable
-fun LlmFullRequestLogcatSwitch() {
-    val mmkv = remember { MMKV.defaultMMKV() }
-    var isEnabled by remember {
-        mutableStateOf(mmkv.decodeBool(MMKVKeys.LLM_FULL_REQUEST_LOGCAT.key, false))
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Logcat 完整 LLM 请求",
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    text = "将实际上传 wire JSON 分段打 logcat（标签 LLMFullRequest），并写入 " +
-                        "/sdcard/.xomniclaw/workspace/logs/llm-full-request/*.json（与 HTTP 正文一致，另附 .meta.txt）。\n" +
-                        "长 base64 时 logcat 可能丢行，请用 adb pull 或看带 path= 的短行。默认关闭。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Switch(
-                checked = isEnabled,
-                onCheckedChange = { enabled ->
-                    isEnabled = enabled
-                    mmkv.encode(MMKVKeys.LLM_FULL_REQUEST_LOGCAT.key, enabled)
-                }
-            )
-        }
-    }
-}

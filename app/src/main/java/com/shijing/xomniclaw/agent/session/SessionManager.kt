@@ -9,7 +9,6 @@ package com.shijing.xomniclaw.agent.session
 
 
 import android.util.Log
-import com.shijing.xomniclaw.agent.memory.TokenEstimator
 import com.shijing.xomniclaw.providers.LegacyMessage
 import com.shijing.xomniclaw.providers.LegacyToolCall
 import com.shijing.xomniclaw.providers.LegacyFunction
@@ -556,8 +555,32 @@ data class Session(
      * Update token count
      */
     fun updateTokenCount() {
-        totalTokens = TokenEstimator.estimateMessagesTokens(messages)
+        totalTokens = estimateLegacyMessagesTokens(messages)
         totalTokensFresh = true
+    }
+
+    /** 会话 token 估算（多字节加权，原 agent/memory/TokenEstimator 已合并进本类，L1）。仅用于记录/展示，非上下文预算。 */
+    private fun estimateLegacyMessagesTokens(messages: List<LegacyMessage>): Int {
+        var total = 0
+        for (msg in messages) {
+            // thinking 不参与估算（与旧 TokenEstimator 口径一致）
+            if (msg.role == "thinking") continue
+            total += 5 // role 结构开销
+            (msg.content as? String)?.let { total += estimateTextTokens(it) }
+            msg.toolCalls?.forEach { tc ->
+                total += 10 + estimateTextTokens(tc.function.name) + estimateTextTokens(tc.function.arguments)
+            }
+            msg.toolCallId?.let { total += estimateTextTokens(it) }
+        }
+        return total
+    }
+
+    /** 4 字符 ≈ 1 token，非 ASCII 字符额外加权 1.2。 */
+    private fun estimateTextTokens(text: String): Int {
+        if (text.isEmpty()) return 0
+        var multibyte = 0
+        for (ch in text) if (ch.code > 127) multibyte++
+        return ((text.length + multibyte * 0.2) / 4.0).toInt()
     }
 
     /**

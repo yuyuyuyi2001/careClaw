@@ -51,24 +51,16 @@ class ToolRegistry(
         val workspace = File("/sdcard/.xomniclaw/workspace")
         workspace.mkdirs()
 
-        // === File system tools (from Pi Coding Agent) ===
-        register(ReadFileTool(context = context, workspace = workspace))
-        register(WriteFileTool(workspace = workspace))
-        register(EditFileTool(workspace = workspace))
-        register(ListDirTool(workspace = workspace))
+        // === File system tools ===
+        // read_file 保留：SKILL.md 技能热加载靠 LLM 现读技能文件（ContextBuilder/SkillsLoader 依赖）。
+        // write_file/edit_file/list_dir/exec/web_fetch 为 Pi Coding Agent 通用编码工具，端侧智能体演示线用不到，已删（L1）。
 
         // === Memory tools (Memory Recall) ===
-        
         // Memory tools registered in AndroidToolRegistry (MemorySearchSkill/MemoryGetSkill)
-
-        // === Shell tools ===
-        register(ExecFacadeTool(workingDir = workspace.absolutePath))
-
-        // === Network tools ===
-        register(WebFetchTool())
 
         // === Config tools ===
         val configMethods = ConfigMethods(context)
+        register(ReadFileTool(context = context, workspace = workspace))
         register(ConfigGetTool(configMethods))
         register(ConfigSetTool(configMethods))
 

@@ -1,7 +1,6 @@
 package com.shijing.xomniclaw.voice
 
 import android.content.Context
-import android.util.Base64
 import android.util.Log
 import com.shijing.xomniclaw.config.ConfigLoader
 import com.shijing.xomniclaw.config.ProviderConfig
@@ -11,7 +10,6 @@ import com.shijing.xomniclaw.agent.loop.LlmTokenUsage
 import com.shijing.xomniclaw.providers.UnifiedLLMProvider
 import com.shijing.xomniclaw.providers.llm.Message
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -70,46 +68,6 @@ class LocalVoiceVisionHub(
         .readTimeout(120, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
         .build()
-
-    /**
-     * 返回与历史 PC Hub sync_audio 相同形状的 JSON：text, reply, direct_action?, status, error?
-     */
-    suspend fun runSyncAudio(
-        wavBytes: ByteArray,
-        alignedFrameTsMs: Long? = null
-    ): JSONObject = withContext(Dispatchers.IO) {
-        val out = JSONObject()
-        try {
-            val sttProvider = loadProvider("stt")
-                ?: run {
-                    out.put("status", "error")
-                    out.put("error", "缺少 STT provider 配置（models.providers.stt）")
-                    return@withContext out
-                }
-            val sttKey = sttProvider.apiKey.orEmpty()
-            val sttUrl = sttProvider.baseUrl
-            val sttModel = sttProvider.models.firstOrNull()?.id.orEmpty()
-            if (sttKey.isBlank() || sttUrl.isBlank() || sttModel.isBlank()) {
-                out.put("status", "error")
-                out.put(
-                    "error",
-                    "缺少 STT provider 配置（需 models.providers.stt.apiKey/baseUrl/models[0].id）"
-                )
-                return@withContext out
-            }
-            val sttText = transcribeAudio(wavBytes, sttProvider)
-            return@withContext askFromTranscript(
-                sttText = sttText,
-                alignedFrameTsMs = alignedFrameTsMs
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "runSyncAudio failed", e)
-            trace("error", "runSyncAudio failed: ${e.message}")
-            out.put("status", "error")
-            out.put("error", e.message ?: "unknown")
-        }
-        out
-    }
 
     /**
      * 先单独执行 STT，供上层在等待大模型回复前就把识别文本打到屏幕上。
@@ -255,22 +213,9 @@ class LocalVoiceVisionHub(
             trace("route", "vision-latched by press-time snapshot -> keep VLM route after preview closed")
         }
 
-        // 替身模式优先取“按下说话”时刻对齐的那一帧；取不到时再回退到原有最近帧策略。
-        val frames = selectFramesForPrompt(
-            userInput = userInput,
-            alignedFrameTsMs = alignedFrameTsMs,
-            allowBufferFramesWhenCameraStopped = voiceStartedWithVision
-        )
+        // 视觉帧管线已随 L1 删除：cameraRunningNow 恒 false、selectFramesForPrompt 恒返回空帧，
+        // 对齐截图披露（aligned_frame_path）从未被设置，属纯死路径，不再请求/落盘任何截图。
         return coroutineScope {
-            // 调试落盘与 VLM 请求并行，避免同步写盘占用调用大模型前的准备时间。
-            val saveDeferred = async(Dispatchers.IO) {
-                saveDebugFrames(
-                    userInput = userInput,
-                    alignedFrameTsMs = alignedFrameTsMs,
-                    frames = frames
-                )
-            }
-
             val messages = mutableListOf<Message>()
             messages.add(Message(role = "system", content = systemPrompt))
             // 注入本机日期/星期，否则纯 VLM 易误判「无法获取实时日期」。
@@ -296,21 +241,15 @@ class LocalVoiceVisionHub(
                 }
             }
 
-            val imageDataUrls = mutableListOf<String>()
-            for (jpeg in frames) {
-                val b64 = Base64.encodeToString(jpeg, Base64.NO_WRAP)
-                imageDataUrls.add(b64)
-            }
             messages.add(
                 Message(
                     role = "user",
                     content = userInput,
-                    imageDataUrls = imageDataUrls.takeIf { it.isNotEmpty() }
+                    imageDataUrls = null
                 )
             )
 
             val rawAiReply = callVlm(messages)
-            val alignedFramePath = saveDeferred.await()
 
             val sanitized = VoiceVlmReplyProcessor.sanitize(
                 rawAiReply = rawAiReply,
@@ -352,7 +291,7 @@ class LocalVoiceVisionHub(
                 command = command,
                 ts = ts,
                 userInput = userInput,
-                alignedFramePath = alignedFramePath
+                alignedFramePath = null
             )
         }
     }
@@ -365,80 +304,6 @@ class LocalVoiceVisionHub(
         if (VoiceIntentAtoms.matchAny(userInput, VoiceIntentAtoms.MULTI_STEP_ANY)) return true
         val appMentioned = voiceShortcuts.appPackages.keys.any { userInput.contains(it) }
         return appMentioned && searchIntent
-    }
-
-    private fun selectFramesForPrompt(
-        userInput: String,
-        alignedFrameTsMs: Long?,
-        allowBufferFramesWhenCameraStopped: Boolean
-    ): List<ByteArray> {
-        val cameraRunning = false
-        if (!cameraRunning && !allowBufferFramesWhenCameraStopped) {
-            trace("frame_policy", "camera not running -> skip attaching frame")
-            return emptyList()
-        }
-
-        if (alignedFrameTsMs == null) {
-            if (!cameraRunning) {
-                trace("frame_align", "camera stopped but vision-latched, pressStartTs missing -> try buffered query frames")
-            } else {
-                trace("frame_align", "pressStartTs missing, fallback to query policy")
-            }
-            return emptyList()
-        }
-        trace("frame_align", "aligned frame missing, fallback to query policy (cameraRunning=$cameraRunning)")
-        return emptyList()
-    }
-
-    /**
-     * 将本次真正送给大模型的截图落盘，便于直接核对“看到的是哪一帧”。
-     * 保存失败不影响语音主链路。
-     */
-    private fun saveDebugFrames(
-        userInput: String,
-        alignedFrameTsMs: Long?,
-        frames: List<ByteArray>
-    ): String? {
-        try {
-            val debugRoot = File("/sdcard/.xomniclaw/workspace/debug/voice-vision-frames")
-            if (!debugRoot.exists()) debugRoot.mkdirs()
-
-            val sessionId = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
-            val sessionDir = File(debugRoot, sessionId)
-            if (!sessionDir.exists()) sessionDir.mkdirs()
-
-            frames.forEachIndexed { index, jpeg ->
-                File(sessionDir, "frame_${index + 1}.jpg").writeBytes(jpeg)
-            }
-
-            val meta = JSONObject().apply {
-                put("savedAt", timestamp())
-                put("alignedFrameTsMs", alignedFrameTsMs ?: JSONObject.NULL)
-                put("frameCount", frames.size)
-                put("userInput", userInput)
-                put(
-                    "files",
-                    org.json.JSONArray().apply {
-                        frames.indices.forEach { index ->
-                            put("frame_${index + 1}.jpg")
-                        }
-                    }
-                )
-            }
-            File(sessionDir, "meta.json").writeText(meta.toString(2))
-            trace(
-                "frame_debug",
-                "saved ${frames.size} frame(s) for prompt under ${sessionDir.absolutePath}"
-            )
-            return if (frames.isNotEmpty()) {
-                File(sessionDir, "frame_1.jpg").absolutePath
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            trace("frame_debug_error", e.message ?: "save debug frames failed")
-            return null
-        }
     }
 
     /**

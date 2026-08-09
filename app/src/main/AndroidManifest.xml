@@ -99,19 +99,6 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
 
-        <!-- Skills 管理页面 -->
-        <activity
-            android:name="com.shijing.xomniclaw.ui.activity.SkillsActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
-
-        <!-- 权限管理页面 -->
-        <activity
-            android:name="com.shijing.xomniclaw.ui.activity.PermissionsActivity"
-            android:exported="true"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
 
         <!-- 前台服务（保活） -->
         <service
