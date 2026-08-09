@@ -31,6 +31,7 @@ CareClaw is an **edge-native multimodal Android agent** (Observe–Reason–Act)
 | **教学模式** | 非 root 录制安装流程 → 生成 SKILL.md → 下次一句话完成 |
 | **SKILL.md 技能热加载** | install / app-search / gallery-qa / gallery-memory / memory-evolution 等 |
 | **极简 UI** | 主界面（对话 / 状态 / 设置三 Tab）+ 悬浮窗进度 |
+| **后台感知与结果通知** | 常驻通知实时刷新「步骤 X/Y + 当前动作」（不依赖悬浮窗权限），任务完成/出错推送可点开的结果通知；UI 不在前台时广播/HTTP 指令自动转入后台执行 |
 
 ---
 
