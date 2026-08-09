@@ -125,13 +125,24 @@ class UnifiedLLMProvider(private val context: Context) {
         // Convert tool definitions to new format
         val newTools = tools?.map { convertToolDefinition(it) }
 
+        // kimi 等推理模型要求 assistant 消息 content 非空：
+        // 工具调用时落盘的空 content assistant 会触发 400 (must not be empty)。
+        // 这里过滤「空 content 且无工具调用」的脏消息，工具调用消息的 content 填占位符保留上下文。
+        val cleanMessages = messages.filter { m ->
+            !(m.role == "assistant" && m.content.isBlank() && m.toolCalls.isNullOrEmpty())
+        }.map { m ->
+            if (m.role == "assistant" && m.content.isBlank() && !m.toolCalls.isNullOrEmpty()) {
+                m.copy(content = " ")
+            } else m
+        }
+
         // Retry logic
         var lastException: Exception? = null
 
         for (attempt in 1..maxRetries) {
             try {
                 return@withContext performRequest(
-                    messages, newTools, modelRef, temperature, maxTokens, reasoningEnabled
+                    cleanMessages, newTools, modelRef, temperature, maxTokens, reasoningEnabled
                 )
             } catch (e: LLMException) {
                 lastException = e
