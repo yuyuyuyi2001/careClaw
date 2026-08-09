@@ -12,8 +12,6 @@
 
 CareClaw is an **edge-native multimodal Android agent** (Observe–Reason–Act) that helps children remotely install apps on their parents' phones. It runs fully on-device, observes the screen via accessibility tree + screenshots, reasons with an LLM, and executes atomic operations (search / download / install / verify), then reports back. Long-term memory (install history + user profile + gallery theme retrieval) is its core capability.
 
-**来源 / Origin**：由 [X-OmniClaw](../X-OmniClaw/) 改造而来——从 71.7K 行精简到 **40.0K 行**、纯 Kotlin 单模块、无 Python（Chaquopy）、去 Discord/Observer/YOLO/CameraX/WebSocket 等外围，保留并重组了记忆三件套、安装链路、飞书 + HTTP 双远程通道、安全层、教学模式等 20 项亮点功能。
-
 ---
 
 ## 功能亮点 / Features
@@ -46,7 +44,7 @@ CareClaw is an **edge-native multimodal Android agent** (Observe–Reason–Act)
   → 记忆沉淀：工作记忆 + MemoryEvolution 定时聚合画像
 ```
 
-关键包结构（`app/src/main/java/com/shijing/xomniclaw/`）：
+关键包结构（`app/src/main/java/` 下）：
 
 ```
 agent/          # AgentLoop + context + session + skills + tools + memory + behavior
