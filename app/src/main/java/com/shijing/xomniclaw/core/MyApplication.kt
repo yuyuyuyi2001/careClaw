@@ -179,10 +179,7 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
             com.shijing.xomniclaw.remote.GatewayService.start(this, token)
         }
 
-        // 启动飞书渠道（主远程通道；未配置 appId/appSecret 时自动跳过）
-        runCatching {
-            com.shijing.xomniclaw.remote.FeishuManager.start(this)
-        }
+        // 飞书渠道已删（L2 精简）；远程入口现为 HTTP（GatewayService，见上方启动逻辑）。
 
 
         // Register global exception handler

@@ -173,7 +173,6 @@ class AndroidToolRegistry(
                 "应用管理" to listOf("list_installed_apps", "install_app", "start_activity"),
                 "记忆" to listOf("gallery_memory", "memory_evolution", "memory_get", "memory_search"),
                 "系统设置" to listOf("system_settings"),
-                "媒体" to listOf("send_image"),
                 "控制" to listOf("stop", "log")
             )
 

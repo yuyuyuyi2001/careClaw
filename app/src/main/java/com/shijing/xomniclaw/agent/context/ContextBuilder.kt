@@ -113,10 +113,10 @@ class ContextBuilder(
      * Tells the agent where the current message came from and how replies are routed.
      */
     data class ChannelContext(
-        val channel: String = "android",      // "feishu", "discord", "android"
-        val chatId: String? = null,            // feishu chat_id / discord channel_id
+        val channel: String = "android",      // "http", "android"
+        val chatId: String? = null,            // inbound chat id
         val chatType: String? = null,          // "p2p", "group"
-        val senderId: String? = null,          // sender open_id / user_id
+        val senderId: String? = null,          // sender id
         val messageId: String? = null          // inbound message id
     )
 
@@ -293,20 +293,9 @@ Scope yourself to the user's request; on conflict pause and ask; respect stop/au
 
         // --- A) Messaging hints (aligned with OmniClaw buildMessagingSection) ---
         parts.add("## Messaging")
-        parts.add("- Reply in current session → automatically routes to the source channel (Feishu, Discord, etc.)")
+        parts.add("- Reply in current session → automatically routes to the source channel.")
         parts.add("- Your text reply is sent to the user automatically. You do NOT need any tool to reply.")
         parts.add("- Never use exec/curl for provider messaging; the system handles all routing internally.")
-
-        // Channel-specific messaging hints
-        when (channelContext.channel) {
-            "feishu" -> {
-                parts.add("- Feishu supports: text, rich text (post), interactive cards, images.")
-                parts.add("- To send to a **different chat**, use feishu_* tools with the target chat_id.")
-            }
-            "discord" -> {
-                parts.add("- Markdown formatting is supported.")
-            }
-        }
 
         // --- B) Inbound Context (aligned with OmniClaw buildInboundMetaSystemPrompt) ---
         // OmniClaw outputs this as a JSON block with schema "omniclaw.inbound_meta.v1"

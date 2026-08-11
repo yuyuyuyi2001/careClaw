@@ -86,10 +86,6 @@ class DeviceTool(private val context: Context) : Tool {
         private val HINT_BUTTON_KEYWORDS = listOf(
             "查看提示", "提示", "help", "hint", "题解", "解析"
         )
-        private val FEISHU_PACKAGE_ALIASES = mapOf(
-            "com.bytedance.feishu" to "com.ss.android.lark"
-        )
-        private val FEISHU_PACKAGES = setOf("com.ss.android.lark", "com.bytedance.feishu")
         private val SEND_TARGET_HINTS = listOf("发送", "发 送", "send")
 
         /** Total swipe length (|end-start|) that approximates one vertical wheel tick. */
@@ -294,12 +290,10 @@ class DeviceTool(private val context: Context) : Tool {
         return SEND_TARGET_HINTS.any { hint -> t.contains(hint.lowercase()) }
     }
 
-    /** 归一化常见包名别名，避免历史错误包名导致开错应用。 */
+    /** 归一化包名（trim 校验），避免空包名导致开错应用。 */
     private fun normalizeKnownPackageAlias(rawPackageName: String?): Pair<String?, String?> {
         val input = rawPackageName?.trim()?.takeIf { it.isNotEmpty() } ?: return null to null
-        val normalized = FEISHU_PACKAGE_ALIASES[input] ?: input
-        val note = if (normalized != input) "package alias: $input -> $normalized" else null
-        return normalized to note
+        return input to null
     }
 
     private fun appendUiVerifyHintAfterMutation(result: ToolResult, kind: String?): ToolResult {
@@ -569,33 +563,10 @@ class DeviceTool(private val context: Context) : Tool {
         return appendUiVerifyHintAfterMutation(result, kind)
     }
 
-    /**
-     * 飞书聊天页常见问题：模型能看到输入框但容易点错右下角图标（如加号/语音）导致内容丢失。
-     * 当目标语义是“发送”且当前为飞书包时，强制注入最可信发送按钮 ref，优先树内点击而非盲点坐标。
-     */
-    private fun injectFeishuSendRefIfNeeded(
-        args: Map<String, Any?>,
-        semanticTarget: String
-    ): Pair<Map<String, Any?>, Boolean> {
-        val refExisting = sanitizeRefOrSnapshotToken(args["ref"] as? String)
-        if (refExisting.isNotEmpty()) return args to false
-        if (!isSendLikeTarget(semanticTarget)) return args to false
-
-        val pkg = refManager.getSnapshotPackage() ?: return args to false
-        if (!FEISHU_PACKAGES.contains(pkg)) return args to false
-
-        val sendRef = refManager.findLikelyChatSendButtonRef(pkg) ?: return args to false
-        val mapped = LinkedHashMap<String, Any?>().apply {
-            putAll(args)
-            put("ref", sendRef)
-        }
-        return mapped to true
-    }
-
     private suspend fun executeTap(args: Map<String, Any?>): ToolResult {
         val useDualTrack = (args["use_dual_track"] as? Boolean) == true
         val semanticTarget = deriveTapSemanticTarget(args)
-        val (tapArgs, feishuSendRefForced) = injectFeishuSendRefIfNeeded(args, semanticTarget)
+        val tapArgs = args
         val hasExplicitPointer = hasExplicitTapPointer(tapArgs)
         val beforeTapNodes = safeDumpViewTreeForRetry()
         val adLikelyOnScreen = looksLikeAdvertisementScreen(beforeTapNodes)
@@ -693,11 +664,6 @@ class DeviceTool(private val context: Context) : Tool {
                     " [warn low-confidence-allowed threshold=${"%.2f".format(DUAL_TRACK_MIN_CONFIDENCE)}]"
                 }.orEmpty()
                 val metadata = mutableMapOf<String, Any?>()
-                if (feishuSendRefForced) {
-                    metadata["feishu_send_ref_forced"] = true
-                    // 供上层循环做“发送后验收”约束，避免只点了发送就当完成。
-                    metadata["requires_post_send_snapshot_verify"] = true
-                }
                 if (dualDecision != null) {
                     metadata["dual_track_source"] = dualDecision.source
                     metadata["dual_track_confidence"] = dualDecision.confidence
@@ -788,10 +754,6 @@ class DeviceTool(private val context: Context) : Tool {
                     append(dualTrackHint)
                     append(lowConfidenceHint)
                     append(retryHint)
-                    when {
-                        feishuSendRefForced ->
-                            append(" [飞书：已强制发送按钮 ref，避免误点右下角非发送图标；请立即观察确认消息已发出]")
-                    }
                 }
                 ToolResult.success(resultText, metadata)
             }

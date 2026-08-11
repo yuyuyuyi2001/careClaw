@@ -64,12 +64,5 @@ enum class MMKVKeys(val key: String) {
     GLOBAL_TOKEN_TOTAL("global_token_total"),
 
     // HTTP 入口鉴权 token（备用远程通道，P4）
-    GATEWAY_AUTH_TOKEN("gateway_auth_token"),
-
-    // ========== 飞书渠道（P4b）==========
-    FEISHU_ENABLED("feishu_enabled"),
-    FEISHU_APP_ID("feishu_app_id"),
-    FEISHU_APP_SECRET("feishu_app_secret"),
-    // 允许列表：逗号分隔的 open_id（子女/家人的飞书 open_id）
-    FEISHU_ALLOW_FROM("feishu_allow_from")
+    GATEWAY_AUTH_TOKEN("gateway_auth_token")
 }

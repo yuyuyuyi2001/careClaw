@@ -24,7 +24,7 @@ CareClaw is an **edge-native multimodal Android agent** (Observe–Reason–Act)
 | **应用安装链路（核心业务）** | 检查已装 → 商店搜索 → APK 下载 → 无障碍点"安装" → 验证 → 回报 |
 | **LLM 统一调用** | OpenAI 兼容 + SSE 流式 + 视觉理解，多 Provider（硅基流动 / OpenRouter / Ollama 本地） |
 | **记忆三件套（核心亮点）** | 工作记忆（hybrid search + 上下文压缩）· Gallery Memory（相册扫描/摘要/主题检索）· Memory Evolution（定时增量画像） |
-| **远程双通道** | 飞书 Bot（主，`com.xiaomo.feishu`）+ HTTP（备用，NanoHTTPD 端口 8765） |
+| **远程入口** | HTTP（NanoHTTPD 端口 8765，`GET /api/status` + `POST /api/inject`，ADB/本地调试兜底） |
 | **安全层** | 指令白名单 + 高危二次确认 + 一键停止 + 审计日志 |
 | **教学模式** | 非 root 录制安装流程 → 生成 SKILL.md → 下次一句话完成 |
 | **SKILL.md 技能热加载** | install / app-search / gallery-qa / gallery-memory / memory-evolution 等 |
@@ -51,11 +51,10 @@ agent/          # AgentLoop + context + session + skills + tools + memory + beha
 accessibility/  # 感知层（无障碍服务 + 截屏 + 权限页）
 voice/          # 录音 → LLM 理解（无固定 STT）+ TTS 外围
 providers/      # UnifiedLLMProvider（OpenAI 兼容）+ ApiAdapter
-remote/         # FeishuManager（主）+ GatewayHttp（备用）
+remote/         # GatewayHttp（HTTP 远程入口）
 safety/         # 指令白名单 + 一键停止 + 审计日志
 core/           # MainEntryNew（入口）+ MyApplication
 config/ util/   # 配置 + 工具
-com/xiaomo/feishu/  # 折叠进来的飞书 SDK（13 文件，暂未统一包名）
 ```
 
 **权威文档**：`architecture.md`（架构）、`plan.md`（计划）、`process.md`（进度）在仓库根目录。

@@ -145,7 +145,6 @@ class SessionManager {
 
     /**
      * Load sessions from backend SessionManager
-     * (sessions created by Feishu, Discord, WebSocket)
      */
     fun loadSessionsFromBackend() {
         try {

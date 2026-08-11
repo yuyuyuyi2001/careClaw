@@ -207,10 +207,8 @@ dependencies {
     debugImplementation "androidx.compose.ui:ui-tooling:$compose_version"
     debugImplementation "androidx.compose.ui:ui-test-manifest:$compose_version"
 
-    // Feishu Official SDK (needed for direct testing)
-    // 注意:飞书SDK内部包含旧版protobuf,会导致测试环境冲突
-    // 测试时会通过configurations排除此依赖
-    implementation 'com.larksuite.oapi:oapi-sdk:2.4.4'
+    // Gson（JSON 序列化；此前经飞书 SDK 传递引入，L2 删飞书后需显式声明）
+    implementation 'com.google.code.gson:gson:2.10.1'
 
     // MultiDex support
     implementation 'androidx.multidex:multidex:2.0.1'
@@ -251,12 +249,4 @@ dependencies {
     debugImplementation 'androidx.fragment:fragment-testing:1.6.0'
 }
 
-// 测试时排除飞书SDK以避免protobuf冲突
-configurations.all {
-    resolutionStrategy {
-        // 在androidTest中排除飞书SDK
-        if (name.contains('AndroidTest')) {
-            exclude group: 'com.larksuite.oapi', module: 'oapi-sdk'
-        }
-    }
-}
+// L2 精简：飞书 SDK 已删除，此前的 configurations 排除块一并移除。

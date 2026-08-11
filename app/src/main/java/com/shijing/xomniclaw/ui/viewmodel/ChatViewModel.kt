@@ -144,7 +144,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // Ensure MainEntryNew is initialized
             com.shijing.xomniclaw.core.MainEntryNew.initialize(getApplication())
 
-            // Load all backend sessions (Feishu/Discord/WebSocket)
+            // Load all backend sessions
             uiSessionManager.loadSessionsFromBackend()
 
             // Load current session messages

@@ -24,7 +24,6 @@ object LlmOnDemandToolInclusion {
         "gallery_memory",
         "memory_evolution",
         "system_settings",
-        "send_image",
         "memory_get",
         "memory_search",
         "schedule_task",
@@ -113,7 +112,6 @@ object LlmOnDemandToolInclusion {
         if (wantsGalleryMemory(u, low, sys)) out.add("gallery_memory")
         if (wantsMemoryEvolution(u, low, sys)) out.add("memory_evolution")
         if (wantsSystemSettings(u, low, sys)) out.add("system_settings")
-        if (wantsSendImage(u, low)) out.add("send_image")
         if (wantsInstallApp(u, low)) out.add("install_app")
         if (wantsListGallery(u, low)) out.add("list_gallery_images")
         if (wantsCopyImagesToAlbum(u, low)) out.add("copy_images_to_album")
@@ -248,14 +246,6 @@ object LlmOnDemandToolInclusion {
         if (u.contains("定位") || u.contains("GPS", true) || u.contains("行動") || u.contains("移动数据")) return true
         if (u.contains("设置") && (u.contains("开") || u.contains("关"))) return true
         if (low.contains("airplane") || low.contains("bluetooth") || low.contains("system_settings")) return true
-        return false
-    }
-
-    private fun wantsSendImage(u: String, low: String): Boolean {
-        if (u.contains("飞书") || u.contains("Feishu", ignoreCase = true) || low.contains("lark")) return true
-        if (u.contains("发图") || u.contains("发图片") || (u.contains("发") && u.contains("到") && (u.contains("群") || u.contains("人")))) return true
-        if (u.contains("传图") || u.contains("上传图")) return true
-        if (low.contains("send_image") || (low.contains("feishu") && u.contains("图"))) return true
         return false
     }
 
