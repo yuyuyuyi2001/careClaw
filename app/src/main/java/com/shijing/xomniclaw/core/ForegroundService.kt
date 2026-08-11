@@ -14,7 +14,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
@@ -41,52 +40,6 @@ class ForegroundService : Service() {
         const val ACTION_START_ACTIVITY = "START_ACTIVITY"
         const val EXTRA_PACKAGE_NAME = "package_name"
         const val EXTRA_ACTIVITY_NAME = "activity_name"
-
-        /**
-         * 供 AgentNotifier 动态刷新常驻通知（id=1）：后台运行时把「步骤 X/Y + 当前动作」刷到通知栏，
-         * 不依赖悬浮窗权限，是用户感知 Agent 后台运行的主渠道。
-         */
-        fun updateNotification(context: Context, title: String, content: String) {
-            try {
-                val notificationManager = context.getSystemService(NotificationManager::class.java)
-                notificationManager.notify(NOTIFICATION_ID, buildNotification(context, title, content))
-                Log.d(TAG, "Running notification updated: $title — ${content.take(30)}")
-            } catch (e: Exception) {
-                Log.w(TAG, "updateNotification failed", e)
-            }
-        }
-
-        private fun buildNotification(context: Context, title: String, content: String): Notification {
-            val notificationIntent = context.packageManager
-                .getLaunchIntentForPackage(context.packageName)?.apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                } ?: Intent()
-
-            val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            } else {
-                PendingIntent.FLAG_UPDATE_CURRENT
-            }
-
-            val pendingIntent = PendingIntent.getActivity(
-                context,
-                0,
-                notificationIntent,
-                pendingIntentFlags
-            )
-
-            return NotificationCompat.Builder(context, CHANNEL_ID)
-                .setContentTitle(title)
-                .setContentText(content)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(content))
-                .setSmallIcon(R.drawable.ic_baseline_adb_24)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setShowWhen(true)
-                .setOngoing(true) // Set as ongoing notification, user cannot swipe to dismiss
-                .setContentIntent(pendingIntent)
-                .setAutoCancel(false) // Don't auto-cancel after tap
-                .build()
-        }
     }
 
     override fun onCreate() {
@@ -191,6 +144,34 @@ class ForegroundService : Service() {
     /**
      * Create foreground service notification
      */
-    private fun createNotification(): Notification =
-        buildNotification(this, "OmniClaw 正在运行", "点击打开应用")
+    private fun createNotification(): Notification {
+        // Create PendingIntent for notification tap (jump to app)
+        val notificationIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        } ?: Intent()
+
+        val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            notificationIntent,
+            pendingIntentFlags
+        )
+
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("OmniClaw 正在运行")
+            .setContentText("点击打开应用")
+            .setSmallIcon(R.drawable.ic_baseline_adb_24)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setShowWhen(true)
+            .setOngoing(true) // Set as ongoing notification, user cannot swipe to dismiss
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(false) // Don't auto-cancel after tap
+            .build()
+    }
 }

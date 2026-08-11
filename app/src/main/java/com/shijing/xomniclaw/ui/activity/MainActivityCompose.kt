@@ -250,14 +250,6 @@ class MainActivityCompose : ComponentActivity() {
     companion object {
         private const val TAG = "MainActivityCompose"
         private const val REQUEST_MANAGE_EXTERNAL_STORAGE = 1001
-        private const val REQUEST_POST_NOTIFICATIONS = 1002
-
-        /**
-         * 主界面是否存活。用于后台广播兜底路由：MyApplication.handleChatBroadcast 在
-         * 主界面不在前台时直接进入后台 Agent 执行（否则消息会因无人接收而丢失）。
-         */
-        @Volatile
-        var isActivityAlive = false
     }
 
     private var chatBroadcastReceiver: ChatBroadcastReceiver? = null
@@ -283,14 +275,8 @@ class MainActivityCompose : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 标记主界面存活：后台广播兜底执行依赖此标志
-        isActivityAlive = true
-
         // Check and request file management permission
         checkAndRequestStoragePermission()
-
-        // Android 13+ 需要运行时授予通知权限，否则后台进度/结果通知不会显示
-        requestNotificationPermission()
 
         // Best-effort auto-enable accessibility on privileged/root devices.
         lifecycleScope.launch(Dispatchers.IO) {
@@ -352,24 +338,7 @@ class MainActivityCompose : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        isActivityAlive = false
         unregisterChatBroadcastReceiver()
-    }
-
-    /**
-     * Android 13+ 运行时请求通知权限（进度/结果通知显示的前提；系统弹窗，不影响演示流程）。
-     */
-    private fun requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
-                android.content.pm.PackageManager.PERMISSION_GRANTED
-            ) {
-                requestPermissions(
-                    arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
-                    REQUEST_POST_NOTIFICATIONS
-                )
-            }
-        }
     }
 
     /**

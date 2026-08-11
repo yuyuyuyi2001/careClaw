@@ -593,28 +593,10 @@ object MainEntryNew {
                     // 不再依赖最终回复文案中的关键词来判断。
                     SessionFloatWindow.finishTask()
 
-                    // 后台感知：恢复常驻通知默认文案 + 推结果通知。
-                    // 广播/HTTP 入口调用 runWithSession 时 remoteReply 为 null，通知是用户唯一能看到结果的地方。
-                    AgentNotifier.restoreIdle(application)
-
                     // 5. Broadcast AI response (skip if already sent via block reply)
                     if (cleanFinalContent.isNotEmpty()) {
                         // Update floating window with latest AI response
                         com.shijing.xomniclaw.ui.floatwindow.SessionFloatWindow.updateLatestMessage(displayForUser)
-
-                        // 某些 provider/AgentLoop 会把 LLM 调用错误写进 finalContent（而非抛异常），
-                        // 用内容特征修正成功标志，避免“✅ 任务完成”搭配错误内容误导用户。
-                        val looksLikeError = cleanFinalContent.contains("❌") ||
-                            cleanFinalContent.contains("执行出错") ||
-                            cleanFinalContent.contains("LLM request failed") ||
-                            cleanFinalContent.contains("API request failed") ||
-                            cleanFinalContent.contains("rate limit")
-                        AgentNotifier.showResult(
-                            application,
-                            success = !looksLikeError,
-                            title = if (looksLikeError) "❌ 任务出错" else "✅ 任务完成",
-                            content = cleanFinalContent
-                        )
 
                         // 远程渠道（飞书/HTTP）回执：把最终答复发回对话
                         remoteReply?.invoke(cleanFinalContent)
@@ -624,14 +606,6 @@ object MainEntryNew {
                         } else {
                             Log.d(TAG, "📤 [Broadcast] Broadcasting AI response...")
                         }
-                    } else {
-                        // 任务结束但未产出最终回复（如达到最大迭代仍未收敛）也通知用户，避免“毫无动静”。
-                        AgentNotifier.showResult(
-                            application,
-                            success = false,
-                            title = "⚠️ 任务结束（无最终回复）",
-                            content = "任务已执行 ${result.iterations} 步但未生成最终回复，请打开 App 查看对话详情。"
-                        )
                     }
                     sessionUiContext.lastBlockReplyText.set(null)
 
@@ -713,20 +687,6 @@ object MainEntryNew {
                 }
                 updateSessionRunningState(effectiveSessionId, running = false, runToken = runToken)
                 SessionFloatWindow.finishTask()
-
-                // 后台感知：异常/取消也推送结果通知（区分文案，避免误导为代码故障）
-                AgentNotifier.restoreIdle(application)
-                AgentNotifier.showResult(
-                    application,
-                    success = !cancelledByUser,
-                    title = if (cancelledByUser) "🛑 任务已停止" else "❌ 执行出错",
-                    content = if (cancelledByUser) {
-                        "你已手动取消当前任务，这不是系统错误。"
-                    } else {
-                        (exception.message ?: "未知错误")
-                    }
-                )
-
                 // Agent 异常结束 → 也隐藏浮动窗口
                 if (_runningSessionIds.value.isEmpty()) {
                     SessionFloatWindow.setAgentRunning(false, application)
@@ -1016,18 +976,6 @@ object MainEntryNew {
     }
 
     /**
-     * 把 Agent 进度同步到常驻通知（id=1）。
-     *
-     * 悬浮窗依赖 SYSTEM_ALERT_WINDOW 权限，无权限时用户完全看不到 Agent 是否在跑；
-     * 通知是后台运行时唯一可靠的感知渠道。仅在 MainEntryNew 已初始化后可用。
-     */
-    private fun notifyProgress(title: String, content: String) {
-        if (::application.isInitialized) {
-            AgentNotifier.updateProgress(application, title, content)
-        }
-    }
-
-    /**
      * Handle progress update - Only update floating window display
      */
     private suspend fun handleProgressUpdate(
@@ -1043,7 +991,6 @@ object MainEntryNew {
                     title = "🤖 步骤 ${update.number}/$agentMaxIterations",
                     content = "正在思考..."
                 )
-                notifyProgress("🤖 步骤 ${update.number}/$agentMaxIterations", "正在思考...")
             }
 
             is ProgressUpdate.Thinking -> {
@@ -1053,7 +1000,6 @@ object MainEntryNew {
                     title = "🤖 步骤 ${update.iteration}/$agentMaxIterations",
                     content = "正在思考..."
                 )
-                notifyProgress("🤖 步骤 ${update.iteration}/$agentMaxIterations", "正在思考...")
             }
 
             is ProgressUpdate.Reasoning -> {
@@ -1113,7 +1059,6 @@ object MainEntryNew {
                     title = "🔧 执行: ${update.name}",
                     content = argsText.take(100)
                 )
-                notifyProgress("🔧 执行: ${update.name}", argsText.take(100))
                 sessionUiContext?.let {
                     emitProgressToUi(it, "tool_call", "执行: ${update.name}", argsText)
                 }
@@ -1136,10 +1081,6 @@ object MainEntryNew {
                     title = "✅ 步骤 ${update.number}/$agentMaxIterations 完成",
                     content = "耗时: ${update.iterationDuration / 1000}s"
                 )
-                notifyProgress(
-                    "✅ 步骤 ${update.number}/$agentMaxIterations 完成",
-                    "耗时: ${update.iterationDuration / 1000}s"
-                )
             }
 
             is ProgressUpdate.ContextOverflow -> {
@@ -1148,7 +1089,6 @@ object MainEntryNew {
                     title = "上下文超限",
                     content = update.message
                 )
-                notifyProgress("上下文超限", update.message)
             }
 
             is ProgressUpdate.ContextRecovered -> {
@@ -1157,7 +1097,6 @@ object MainEntryNew {
                     title = "上下文已恢复",
                     content = "策略: ${update.strategy}"
                 )
-                notifyProgress("上下文已恢复", "策略: ${update.strategy}")
             }
 
             is ProgressUpdate.LoopDetected -> {
@@ -1166,10 +1105,6 @@ object MainEntryNew {
                 SessionFloatWindow.updateSessionInfo(
                     title = "${if (update.critical) "严重" else "警告"}: 循环检测",
                     content = "${update.detector}: ${update.count} 次"
-                )
-                notifyProgress(
-                    "${if (update.critical) "严重" else "警告"}: 循环检测",
-                    "${update.detector}: ${update.count} 次"
                 )
             }
 
@@ -1185,7 +1120,6 @@ object MainEntryNew {
                     title = "错误",
                     content = update.message.take(100)
                 )
-                notifyProgress("错误", update.message.take(100))
                 sessionUiContext?.let {
                     emitProgressToUi(it, "error", "错误", update.message)
                 }
@@ -1196,10 +1130,6 @@ object MainEntryNew {
                 SessionFloatWindow.updateSessionInfo(
                     title = "中间回复",
                     content = update.text.take(100) + if (update.text.length > 100) "..." else ""
-                )
-                notifyProgress(
-                    "中间回复",
-                    update.text.take(100) + if (update.text.length > 100) "..." else ""
                 )
                 sessionUiContext?.let {
                     emitProgressToUi(it, "block_reply", "中间回复", update.text)
