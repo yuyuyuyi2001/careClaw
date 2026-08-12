@@ -5,6 +5,8 @@ import android.util.Log
 import com.shijing.xomniclaw.agent.memory.MemoryManager
 import com.shijing.xomniclaw.agent.memory.gallery.GalleryMemoryRepository
 import com.shijing.xomniclaw.agent.memory.gallery.UserProfileGenerator
+import com.shijing.xomniclaw.providers.UnifiedLLMProvider
+import com.shijing.xomniclaw.providers.llm.Message
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -34,6 +36,7 @@ class MemoryEvolutionManager(
         private const val MAX_CANDIDATE_TEXT_CHARS = 280
         private const val DEFAULT_MEMORY_HEADER = "# CareClaw 全局记忆"
         private val TIME_FORMAT = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+        private val JSON_BLOCK_RE = Regex("\\{[\\s\\S]*?\\}")
 
         fun shouldSkipRunRecording(userInput: String): Boolean {
             val normalized = userInput.lowercase(Locale.getDefault())
@@ -50,6 +53,7 @@ class MemoryEvolutionManager(
     private val pendingFile = File(memoryDir, PENDING_EVENTS_FILE)
     private val repository = GalleryMemoryRepository(memoryManager)
     private val userProfileGenerator = UserProfileGenerator(memoryManager, repository)
+    private val llmProvider = UnifiedLLMProvider(context.applicationContext)
 
     suspend fun recordAgentRun(
         sessionId: String,
@@ -118,9 +122,7 @@ class MemoryEvolutionManager(
             memoryManager.appendToToday(formatDailyEvent(event))
         }
 
-        val candidates = batch.flatMap(::extractCandidates)
-        val accepted = candidates
-            .filter { it.confidence >= 0.55 }
+        val accepted = batch.mapNotNull { judgeMemory(it) }
             .filterNot { MemoryEvolutionPolicy.isSensitive(it.content) }
             .distinctBy { it.category to MemoryEvolutionPolicy.normalizeForDedupe(it.title + it.content) }
 
@@ -150,7 +152,7 @@ class MemoryEvolutionManager(
         MemoryEvolutionReport(
             processedEvents = batch.size,
             acceptedCandidates = accepted.size,
-            skippedCandidates = candidates.size - accepted.size,
+            skippedCandidates = batch.size - accepted.size,
             globalMemoryUpdated = globalUpdated,
             profileUpdated = true,
             pendingEventsRemaining = remaining.size,
@@ -170,54 +172,61 @@ class MemoryEvolutionManager(
         return profile
     }
 
-    private fun extractCandidates(event: MemoryEvolutionEvent): List<MemoryCandidate> {
-        val candidates = mutableListOf<MemoryCandidate>()
-        val combined = "${event.userInput}\n${event.finalContent}".trim()
-
-        extractPreference(event)?.let { candidates += it }
-        if (event.success && looksLikeReusableTask(event.userInput, event.toolsUsed)) {
-            candidates += MemoryCandidate(
-                category = MemoryCategory.TASK_WORKFLOW,
-                title = summarizeTitle(event.userInput),
-                content = "用户曾使用 CareClaw 完成：${event.userInput.take(MAX_CANDIDATE_TEXT_CHARS)}。结果摘要：${event.finalContent.take(MAX_CANDIDATE_TEXT_CHARS)}",
-                confidence = 0.68,
-                sourceEventId = event.id
+    /**
+     * 用 LLM 评判单个任务事件是否值得沉淀为长期记忆，并按四类（用户偏好/任务经验/失败教训/项目上下文）归类。
+     * 返回 null 表示「不值得记忆」或 LLM 调用失败（跳过该事件，不阻断整轮进化）。
+     */
+    private suspend fun judgeMemory(event: MemoryEvolutionEvent): MemoryCandidate? {
+        val text = "${event.userInput}\n${event.finalContent}".trim()
+        if (text.isBlank()) return null
+        val systemPrompt = """
+            你是 CareClaw 的「长期记忆提炼器」，判断一段 Agent 任务记录是否值得沉淀为长期记忆。
+            只输出一个 JSON 对象，结构：
+            {"valuable":true/false,"category":"...","title":"...","content":"..."}
+            四类记忆（category 只取其一）：
+            - USER_PREFERENCE：用户偏好、习惯、长期约束（如「以后装软件用应用商店」）
+            - TASK_WORKFLOW：可复用的任务流程、工具组合经验（如「查攻略=打开小红书→搜索→看地点」）
+            - FAILURE_LESSON：失败原因与绕过方式（如「小红书打开失败，改走浏览器」）
+            - PROJECT_CONTEXT：用户持续推进的项目/长期上下文
+            规则：
+            - valuable=true 仅当内容对长期理解用户或复用任务有真实价值；琐碎、一次性、无意义内容返回 false
+            - 绝不输出密码、验证码、token、api key、银行卡号等敏感信息，必要时模糊化
+            - title 简短（≤20 字）；content 简洁（≤80 字），用中文
+        """.trimIndent()
+        val userPrompt = "请判断以下 Agent 任务记录是否有值得长期沉淀的记忆：\n---\n$text"
+        return try {
+            val response = llmProvider.chatWithTools(
+                messages = listOf(
+                    Message(role = "system", content = systemPrompt),
+                    Message(role = "user", content = userPrompt)
+                ),
+                tools = null,
+                temperature = 0.2,
+                maxTokens = 256,
+                reasoningEnabled = false
             )
+            parseJudgeResult(response.content, event)
+        } catch (e: Exception) {
+            Log.w(TAG, "Memory judge failed for event ${event.id}: ${e.message}")
+            null
         }
-        if (!event.success || !event.errorMessage.isNullOrBlank() || combined.contains("失败") || combined.contains("权限")) {
-            val reason = event.errorMessage ?: event.finalContent
-            candidates += MemoryCandidate(
-                category = MemoryCategory.FAILURE_LESSON,
-                title = summarizeTitle(event.userInput),
-                content = "任务相关经验：${event.userInput.take(160)}；现象/结论：${reason.take(MAX_CANDIDATE_TEXT_CHARS)}",
-                confidence = if (event.errorMessage.isNullOrBlank()) 0.58 else 0.75,
-                sourceEventId = event.id
-            )
-        }
-        if (looksLikeProjectContext(event.userInput)) {
-            candidates += MemoryCandidate(
-                category = MemoryCategory.PROJECT_CONTEXT,
-                title = summarizeTitle(event.userInput),
-                content = "用户持续推进的上下文：${event.userInput.take(MAX_CANDIDATE_TEXT_CHARS)}",
-                confidence = 0.6,
-                sourceEventId = event.id
-            )
-        }
-
-        return candidates
     }
 
-    private fun extractPreference(event: MemoryEvolutionEvent): MemoryCandidate? {
-        val text = event.userInput
-        val preferenceMarkers = listOf("以后", "记住", "我希望", "我喜欢", "不要", "总是", "默认")
-        if (preferenceMarkers.none { text.contains(it) }) {
-            return null
-        }
+    private fun parseJudgeResult(content: String?, event: MemoryEvolutionEvent): MemoryCandidate? {
+        val text = content?.trim().orEmpty()
+        if (text.isBlank() || text.startsWith("Error:", ignoreCase = true)) return null
+        val json = runCatching {
+            if (text.startsWith("{")) JSONObject(text) else JSONObject(JSON_BLOCK_RE.find(text)?.value.orEmpty())
+        }.getOrNull() ?: return null
+        if (!json.optBoolean("valuable", false)) return null
+        val category = runCatching { MemoryCategory.valueOf(json.optString("category")) }.getOrNull() ?: return null
+        val title = json.optString("title").trim().take(20).ifBlank { return null }
+        val content = json.optString("content").trim().take(MAX_CANDIDATE_TEXT_CHARS).ifBlank { return null }
         return MemoryCandidate(
-            category = MemoryCategory.USER_PREFERENCE,
-            title = summarizeTitle(text),
-            content = "用户偏好/约束：${text.take(MAX_CANDIDATE_TEXT_CHARS)}",
-            confidence = 0.72,
+            category = category,
+            title = title,
+            content = content,
+            confidence = 1.0,
             sourceEventId = event.id
         )
     }
@@ -372,20 +381,6 @@ class MemoryEvolutionManager(
             toolsUsed = tools,
             triggeredAtMs = optLong("triggeredAtMs")
         )
-    }
-
-    private fun looksLikeReusableTask(userInput: String, toolsUsed: List<String>): Boolean {
-        val keywords = listOf("打开", "搜索", "总结", "发送", "定时", "同步", "扫描", "整理", "分析", "发布")
-        return keywords.any { userInput.contains(it) } || toolsUsed.any { it in setOf("device", "gallery_memory", "schedule_task", "schedule_app_task") }
-    }
-
-    private fun looksLikeProjectContext(userInput: String): Boolean {
-        val keywords = listOf("项目", "代码", "模块", "方案", "设计", "实现", "优化", "修复")
-        return keywords.any { userInput.contains(it) }
-    }
-
-    private fun summarizeTitle(text: String): String {
-        return text.replace(Regex("\\s+"), " ").trim().take(36).ifBlank { "未命名任务" }
     }
 
 }
