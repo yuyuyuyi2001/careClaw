@@ -157,63 +157,12 @@ class SessionManager(
     }
 
     /**
-     * Clear all sessions
-     */
-    fun clearAll() {
-        sessions.clear()
-        sessionIndex.clear()
-        sessionsDir.listFiles()?.forEach {
-            if (it.extension == "jsonl") {
-                it.delete()
-            }
-        }
-        indexFile.delete()
-        Log.d(TAG, "All sessions cleared")
-    }
-
-    /**
      * Get all session keys (only return new format sessions)
      */
     fun getAllKeys(): List<String> {
         loadIndex()
         // Only return sessions from index (new format), ignore old .json files
         return sessionIndex.keys.toList()
-    }
-
-    /**
-     * Auto clean old sessions
-     *
-     * @param days Clean sessions older than this many days
-     */
-    suspend fun pruneOldSessions(days: Int = AUTO_PRUNE_DAYS): Unit = withContext(Dispatchers.IO) {
-        try {
-            val cutoffTime = System.currentTimeMillis() - (days * 24 * 60 * 60 * 1000L)
-            val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
-
-            var prunedCount = 0
-
-            getAllKeys().forEach { key ->
-                val session = loadSession(key)
-                if (session != null) {
-                    try {
-                        val updatedDate = dateFormat.parse(session.updatedAt)
-                        if (updatedDate != null && updatedDate.time < cutoffTime) {
-                            clear(key)
-                            prunedCount++
-                            Log.d(TAG, "Pruned old session: $key (last updated: ${session.updatedAt})")
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Failed to parse date for session: $key", e)
-                    }
-                }
-            }
-
-            if (prunedCount > 0) {
-                Log.d(TAG, "Pruned $prunedCount old sessions (older than $days days)")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to prune old sessions", e)
-        }
     }
 
     // ================ Private Helpers ================
@@ -512,16 +461,13 @@ data class Session(
     var createdAt: String,
     var updatedAt: String,
     var metadata: MutableMap<String, Any?> = mutableMapOf(),
-    var compactionCount: Int = 0,              // Compaction count
-    var totalTokens: Int = 0,                  // Total token count
-    var totalTokensFresh: Boolean = false      // Whether token data is fresh
+    var compactionCount: Int = 0              // Compaction count（索引同步用）
 ) {
     /**
      * Add message
      */
     fun addMessage(message: LegacyMessage) {
         messages.add(message)
-        totalTokensFresh = false  // Mark token count as stale
     }
 
     /**
@@ -536,69 +482,10 @@ data class Session(
     }
 
     /**
-     * Clear messages
-     */
-    fun clearMessages() {
-        messages.clear()
-        totalTokens = 0
-        totalTokensFresh = true
-    }
-
-    /**
      * Get message count
      */
     fun messageCount(): Int {
         return messages.size
-    }
-
-    /**
-     * Update token count
-     */
-    fun updateTokenCount() {
-        totalTokens = estimateLegacyMessagesTokens(messages)
-        totalTokensFresh = true
-    }
-
-    /** 会话 token 估算（多字节加权，原 agent/memory/TokenEstimator 已合并进本类，L1）。仅用于记录/展示，非上下文预算。 */
-    private fun estimateLegacyMessagesTokens(messages: List<LegacyMessage>): Int {
-        var total = 0
-        for (msg in messages) {
-            // thinking 不参与估算（与旧 TokenEstimator 口径一致）
-            if (msg.role == "thinking") continue
-            total += 5 // role 结构开销
-            (msg.content as? String)?.let { total += estimateTextTokens(it) }
-            msg.toolCalls?.forEach { tc ->
-                total += 10 + estimateTextTokens(tc.function.name) + estimateTextTokens(tc.function.arguments)
-            }
-            msg.toolCallId?.let { total += estimateTextTokens(it) }
-        }
-        return total
-    }
-
-    /** 4 字符 ≈ 1 token，非 ASCII 字符额外加权 1.2。 */
-    private fun estimateTextTokens(text: String): Int {
-        if (text.isEmpty()) return 0
-        var multibyte = 0
-        for (ch in text) if (ch.code > 127) multibyte++
-        return ((text.length + multibyte * 0.2) / 4.0).toInt()
-    }
-
-    /**
-     * Get token count (recalculate if not fresh)
-     */
-    fun getTokenCount(): Int {
-        if (!totalTokensFresh) {
-            updateTokenCount()
-        }
-        return totalTokens
-    }
-
-    /**
-     * Mark as compacted
-     */
-    fun markCompacted() {
-        compactionCount++
-        totalTokensFresh = false
     }
 }
 

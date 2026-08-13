@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Base64
 import android.util.Log
-import com.shijing.xomniclaw.DeviceController
 import com.shijing.xomniclaw.accessibility.AccessibilityProxy
 import com.shijing.xomniclaw.accessibility.service.ViewNode
 import com.shijing.xomniclaw.config.ConfigLoader
@@ -441,7 +440,7 @@ class DualTrackDecisionEngine(private val context: Context) {
     }
 
     private fun captureCurrentScreenJpeg(): ByteArray? {
-        val pair = DeviceController.getScreenshot(context) ?: return null
+        val pair = DeviceTool.captureScreenshot(context) ?: return null
         val bitmap = pair.first
         return try {
             bitmapToJpeg(bitmap, SCREENSHOT_JPEG_QUALITY)

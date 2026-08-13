@@ -18,6 +18,8 @@ import android.content.ActivityNotFoundException
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Looper
 import android.util.Log
@@ -38,6 +40,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 
 class DeviceTool(private val context: Context) : Tool {
 
@@ -87,6 +90,42 @@ class DeviceTool(private val context: Context) : Tool {
             "查看提示", "提示", "help", "hint", "题解", "解析"
         )
         private val SEND_TARGET_HINTS = listOf("发送", "发 送", "send")
+
+        /** 统一截图入口（自 DeviceController 内联，避免保留整文件）。 */
+        fun captureScreenshot(context: Context): Pair<Bitmap, String>? {
+            return runBlocking {
+                try {
+                    val uriString = AccessibilityProxy.captureScreen()
+                    if (uriString.isEmpty()) {
+                        Log.w(TAG, "截图失败：URI 为空")
+                        return@runBlocking null
+                    }
+                    Log.d(TAG, "Got screenshot URI: $uriString")
+                    val bitmap = try {
+                        if (uriString.startsWith("content://")) {
+                            val uri = Uri.parse(uriString)
+                            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                                BitmapFactory.decodeStream(inputStream)
+                            }
+                        } else {
+                            BitmapFactory.decodeFile(uriString)
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to decode from URI/path: $uriString", e)
+                        null
+                    }
+                    if (bitmap != null) {
+                        Pair(bitmap, uriString)
+                    } else {
+                        Log.e(TAG, "无法解码截图: $uriString")
+                        null
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "截图失败", e)
+                    null
+                }
+            }
+        }
 
         /** Total swipe length (|end-start|) that approximates one vertical wheel tick. */
         private fun estimateVerticalWheelNotchTotalPx(regionH: Int, refNode: RefNode?, density: Float): Int {
@@ -422,10 +461,9 @@ class DeviceTool(private val context: Context) : Tool {
     // ==================== screenshot ====================
 
     private suspend fun executeScreenshot(): ToolResult {
-        // 截图委托 DeviceController（旧 ScreenshotSkill 已删，由 DeviceTool 统一承载截图）
+        // 截图走统一入口 captureScreenshot（原 DeviceController.getScreenshot 内联）
         val screenshotResult = try {
-            val controller = com.shijing.xomniclaw.DeviceController
-            controller.getScreenshot(context)
+            captureScreenshot(context)
         } catch (e: Exception) {
             null
         }
@@ -462,8 +500,7 @@ class DeviceTool(private val context: Context) : Tool {
 
         // 截一张图，获取当前画面和分辨率
         val screenshotResult = try {
-            val controller = com.shijing.xomniclaw.DeviceController
-            controller.getScreenshot(context)
+            captureScreenshot(context)
         } catch (e: Exception) {
             null
         }

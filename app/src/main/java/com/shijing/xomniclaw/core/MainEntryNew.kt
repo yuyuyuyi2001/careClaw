@@ -113,26 +113,12 @@ object MainEntryNew {
         return plain + "\n\n—\n" + "本回合 LLM tokens：输入 ${usage.promptTokens}，输出 ${usage.completionTokens}，合计 ${usage.totalTokens}（多轮请求累加；未返回时可能为 0）"
     }
 
-    /**
-     * 供飞书/Discord 等与主界面一致的最终展示文案（带 token 行）；不落盘 session。
-     */
-    fun formatAgentReplyWithTokenUsage(plain: String, usage: LlmTokenUsage?) =
-        appendTokenUsageForDisplay(plain, usage)
-
     private fun loge(message: String, error: Throwable? = null) {
         CallerAwareLog.e(TAG, message, error)
     }
 
     // Agent 最大迭代次数，用于浮动窗口进度显示
     private var agentMaxIterations: Int = 40
-
-    // 文档同步完成状态
-    private val _docSyncFinished = MutableStateFlow(false)
-    val docSyncFinished = _docSyncFinished.asStateFlow()
-
-    // 测试摘要完成状态
-    private val _summaryFinished = MutableStateFlow(false)
-    val summaryFinished = _summaryFinished.asStateFlow()
 
     data class UiProgressEvent(
         val id: String,
@@ -812,148 +798,6 @@ object MainEntryNew {
         }
     }
 
-    /**
-     * Run test task - New architecture version
-     */
-    fun run(
-        userInput: String,
-        application: Application,
-        existingRecordId: String? = null,
-        existingPackageName: String? = null,
-        onSummaryFinished: (() -> Job)? = null
-    ) {
-        // 确保已初始化
-        if (!::agentLoop.isInitialized) {
-            initialize(application)
-        }
-
-        // 重置状态
-        _summaryFinished.value = false
-
-        if (TextUtils.isEmpty(user)) {
-            user = Build.MODEL
-        }
-
-        // 先回到桌面
-        safePressHome()
-
-        // 创建新任务
-        val newTaskId = generateTaskId()
-        taskDataManager.startNewTask(newTaskId, existingPackageName ?: "")
-        currentTaskId = newTaskId
-        Log.d(TAG, "========== 新测试任务: $newTaskId ==========")
-
-        // Read mode from xomniclaw.json instead of MMKV
-        val openClawConfig = configLoader.loadOmniClawConfig()
-        val testMode = openClawConfig.agent.mode
-        Log.d(TAG, "测试模式: $testMode (from xomniclaw.json)")
-
-        // Cancel old task
-        cancelCurrentJobWithoutClearingTaskData()
-
-        // Set new task as running
-        val newTaskData = taskDataManager.getCurrentTaskData()
-        newTaskData?.setIsRunning(true)
-
-        // Acquire screen wake lock
-        WakeLockManager.acquireScreenWakeLock()
-        Log.d(TAG, "已获取屏幕唤醒锁")
-
-        // Start coroutine to execute test
-        Log.d(TAG, "🚀 About to start coroutine for test task...")
-        _agentSessionRunning.value = true
-        job = scope.simpleSafeLaunch(
-            {
-                var progressJob: Job? = null
-                try {
-                    Log.d(TAG, "✅ Coroutine started, executing test task...")
-
-                    SessionFloatWindow.setAgentRunning(true, application)
-                    SessionFloatWindow.updateSessionInfo(
-                        title = "Agent 启动中",
-                        content = "任务: ${userInput.take(60)}"
-                    )
-
-                    Log.d(TAG, "💬 Step 1: Building system prompt...")
-                    val packageName = existingPackageName ?: ""
-                    val systemPrompt = contextBuilder.buildSystemPrompt(
-                        userGoal = userInput,
-                        packageName = packageName,
-                        testMode = testMode,
-                        loadAgentPolicies = true
-                    )
-
-                    Log.d(TAG, "✅ System prompt built (${systemPrompt.length} chars)")
-                    Log.d(TAG, "✅ Estimated Tokens: ~${systemPrompt.length / 4}")
-
-                    val skillsStats = contextBuilder.getSkillsStatistics()
-                    if (skillsStats.isNotEmpty()) {
-                        Log.d(TAG, "📊 Skills statistics:")
-                        skillsStats.lines().forEach { line ->
-                            Log.d(TAG, "   $line")
-                        }
-                    }
-
-                    Log.d(TAG, "👂 Step 2: Starting progress listening...")
-                    progressJob = launch {
-                        Log.d(TAG, "✅ Progress listening coroutine started")
-                        agentLoop.progressFlow.collect { update ->
-                            Log.d(TAG, "📥 Received progress update: ${update.javaClass.simpleName}")
-                            handleProgressUpdate(update = update, sessionUiContext = null)
-                        }
-                    }
-                    Log.d(TAG, "✅ Progress listening set up")
-
-                    Log.d(TAG, "========== Starting AgentLoop ==========")
-                    Log.d(TAG, "System prompt length: ${systemPrompt.length}")
-                    Log.d(TAG, "User input: $userInput")
-                    Log.d(TAG, "Universal tools: ${toolRegistry.getToolCount()}")
-                    Log.d(TAG, "Android tools: ${androidToolRegistry.getToolCount()}")
-
-                    val result = agentLoop.run(
-                        systemPrompt = systemPrompt,
-                        userMessage = userInput,
-                        reasoningEnabled = false
-                    )
-
-                    Log.d(TAG, "========== AgentLoop Complete ==========")
-                    Log.d(TAG, "Iterations: ${result.iterations}")
-                    Log.d(TAG, "Tools used: ${result.toolsUsed.joinToString(", ")}")
-                    Log.d(TAG, "Final result: ${result.finalContent}")
-                    result.tokenUsage?.let {
-                        Log.d(
-                            TAG,
-                            "Token usage: prompt=${it.promptTokens} completion=${it.completionTokens} total=${it.totalTokens}"
-                        )
-                    }
-
-                    // 测试任务也使用真实完成态来收起步骤悬浮窗。
-                    SessionFloatWindow.finishTask()
-
-                    _summaryFinished.value = true
-                    onSummaryFinished?.invoke()
-
-                    Log.d(TAG, "测试任务执行完成")
-                } finally {
-                    progressJob?.cancel()
-                    WakeLockManager.releaseScreenWakeLock()
-                    SessionFloatWindow.setAgentRunning(false, application)
-                    _agentSessionRunning.value = false
-                }
-            },
-            { error ->
-                Log.e(TAG, "测试任务执行失败", error)
-                LayoutExceptionLogger.log("MainEntryNew#run", error)
-
-                SessionFloatWindow.finishTask()
-                WakeLockManager.releaseScreenWakeLock()
-                SessionFloatWindow.setAgentRunning(false, application)
-                _summaryFinished.value = true
-                _agentSessionRunning.value = false
-            }
-        )
-    }
-
     private fun emitProgressToUi(
         sessionUiContext: SessionUiContext,
         type: String,
@@ -1185,63 +1029,6 @@ object MainEntryNew {
 
 
     /**
-     * Cancel current task
-     */
-    fun cancelCurrentJob(isRunning: Boolean) {
-        Log.d(TAG, "cancelCurrentJob")
-
-        _agentSessionRunning.value = false
-        _runningSessionIds.value = emptySet()
-        activeSessionRunTokens.clear()
-        activeSessionLoops.values.forEach { loop -> loop.stop() }
-        activeSessionLoops.clear()
-        activeSessionJobs.values.forEach { it.cancel() }
-        activeSessionJobs.clear()
-
-        WakeLockManager.releaseScreenWakeLock()
-
-        currentTaskId = null
-        taskDataManager.clearCurrentTask()
-        job?.cancel()
-
-        val currentTaskData = taskDataManager.getCurrentTaskData()
-        currentTaskData?.setIsRunning(isRunning)
-
-        _summaryFinished.value = true
-
-        // Stop AgentLoop
-        if (::agentLoop.isInitialized) {
-            agentLoop.stop()
-        }
-
-        // 用户手动停止 → 隐藏浮动窗口
-        if (::application.isInitialized) {
-            SessionFloatWindow.setAgentRunning(false, application)
-        }
-    }
-
-    /**
-     * Cancel current task without clearing TaskData
-     */
-    private fun cancelCurrentJobWithoutClearingTaskData() {
-        Log.d(TAG, "cancelCurrentJobWithoutClearingTaskData")
-
-        _agentSessionRunning.value = false
-        _runningSessionIds.value = emptySet()
-        activeSessionRunTokens.clear()
-        activeSessionLoops.values.forEach { loop -> loop.stop() }
-        activeSessionLoops.clear()
-        activeSessionJobs.values.forEach { it.cancel() }
-        activeSessionJobs.clear()
-
-        WakeLockManager.releaseScreenWakeLock()
-        job?.cancel()
-
-        val currentTaskData = taskDataManager.getCurrentTaskData()
-        currentTaskData?.setIsRunning(false)
-    }
-
-    /**
      * 仅停止指定会话的运行，不影响其它会话。
      */
     fun cancelSessionJob(sessionId: String, isRunning: Boolean = false) {
@@ -1268,10 +1055,6 @@ object MainEntryNew {
     }
 
     // ================ Helper Methods ================
-
-    private fun generateTaskId(): String {
-        return "task_${System.currentTimeMillis()}"
-    }
 
     /**
      * 仅提取本轮新增消息，避免把历史上下文重复落盘。
@@ -1329,14 +1112,6 @@ object MainEntryNew {
     /** 用户句锚点归一化：NFKC + trim，减轻 Gemma/OpenRouter 与输入法间 Unicode 差异导致的锚定失败 */
     private fun normalizeUserInputAnchor(raw: String): String {
         return Normalizer.normalize(raw.trim(), Normalizer.Form.NFKC)
-    }
-
-    private fun safePressHome() {
-        try {
-            AccessibilityBinderService.serviceInstance?.pressHomeButton()
-        } catch (e: Exception) {
-            LayoutExceptionLogger.log("MainEntryNew#safePressHome", e)
-        }
     }
 
     private fun shouldReturnToMainAfterRun(

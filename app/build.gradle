@@ -166,14 +166,6 @@ android {
     }
 }
 
-// 解决Protobuf版本冲突: 飞书SDK使用protobuf-java 3.25.5, 测试框架使用protobuf-lite 3.0.1
-configurations.all {
-    resolutionStrategy {
-        // 强制所有模块使用完整版protobuf-java
-        force 'com.google.protobuf:protobuf-java:3.25.5'
-    }
-}
-
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4'
@@ -184,10 +176,7 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.6.1'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.1'
     implementation 'com.squareup.okhttp3:okhttp:4.9.1'
-    implementation 'com.squareup.okhttp3:logging-interceptor:4.9.1'
-    implementation 'com.squareup.okhttp3:okhttp-sse:4.9.1'
     implementation 'com.google.android.material:material:1.9.0'
-    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
     implementation 'com.tencent:mmkv-static:1.3.1'
 
@@ -205,48 +194,12 @@ dependencies {
     implementation "androidx.compose.foundation:foundation:$compose_version"
 
     debugImplementation "androidx.compose.ui:ui-tooling:$compose_version"
-    debugImplementation "androidx.compose.ui:ui-test-manifest:$compose_version"
 
     // Gson（JSON 序列化；此前经飞书 SDK 传递引入，L2 删飞书后需显式声明）
     implementation 'com.google.code.gson:gson:2.10.1'
 
-    // MultiDex support
-    implementation 'androidx.multidex:multidex:2.0.1'
+    // 单元测试（app/src/test 唯一单测依赖；无 androidTest 目录，测试依赖已全部移除）
     testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.multidex:multidex:2.0.1'
-
-    // ========== Android UI 测试依赖 ==========
-    // Espresso 核心
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
-    androidTestImplementation 'androidx.test.espresso:espresso-intents:3.5.1'
-    // 排除protobuf-lite以避免与飞书SDK的protobuf-java冲突
-    androidTestImplementation('androidx.test.espresso:espresso-contrib:3.5.1') {
-        exclude group: 'com.google.protobuf', module: 'protobuf-lite'
-    }
-    androidTestImplementation 'androidx.test.espresso:espresso-idling-resource:3.5.1'
-
-    // AndroidX Test
-    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
-    androidTestImplementation 'androidx.test:runner:1.5.2'
-    androidTestImplementation 'androidx.test:rules:1.5.0'
-    androidTestImplementation 'androidx.test:core:1.5.0'
-    androidTestImplementation 'androidx.test:core-ktx:1.5.0'
-
-    // UI Automator (用于跨应用测试)
-    androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.2.0'
-
-    // Compose UI 测试
-    androidTestImplementation "androidx.compose.ui:ui-test-junit4:$compose_version"
-    debugImplementation "androidx.compose.ui:ui-test-manifest:$compose_version"
-
-    // MockK for Android
-    androidTestImplementation "io.mockk:mockk-android:1.13.5"
-
-    // Kotlin 协程测试 (Android)
-    androidTestImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3"
-
-    // Fragment 测试
-    debugImplementation 'androidx.fragment:fragment-testing:1.6.0'
 }
 
 // L2 精简：飞书 SDK 已删除，此前的 configurations 排除块一并移除。

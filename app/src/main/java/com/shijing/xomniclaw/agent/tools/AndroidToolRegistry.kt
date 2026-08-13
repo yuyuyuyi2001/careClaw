@@ -158,37 +158,6 @@ class AndroidToolRegistry(
     }
 
     /**
-     * Get all tools description (for building system prompt)
-     */
-    fun getToolsDescription(): String {
-        return buildString {
-            appendLine("## Android Platform Tools")
-            appendLine()
-            appendLine("Android 设备专属能力,通过 AccessibilityService 和系统 API 提供：")
-            appendLine()
-
-            // Organize by category
-            val categories = mapOf(
-                "屏幕与交互" to listOf("device"),
-                "应用管理" to listOf("list_installed_apps", "install_app", "start_activity"),
-                "记忆" to listOf("gallery_memory", "memory_evolution", "memory_get", "memory_search"),
-                "系统设置" to listOf("system_settings"),
-                "控制" to listOf("stop", "log")
-            )
-
-            categories.forEach { (category, toolNames) ->
-                val availableTools = toolNames.mapNotNull { name -> tools[name] }
-                if (availableTools.isEmpty()) return@forEach
-                appendLine("### $category")
-                availableTools.forEach { tool ->
-                    appendLine("- **${tool.name}**: ${tool.description.lines().first()}")
-                }
-                appendLine()
-            }
-        }
-    }
-
-    /**
      * Get tool count
      */
     fun getToolCount(): Int = tools.size

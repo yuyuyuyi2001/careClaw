@@ -124,23 +124,6 @@ class ToolRegistry(
     }
 
     /**
-     * Get all tools description (for building system prompt)
-     */
-    fun getToolsDescription(): String {
-        return buildString {
-            appendLine("## Universal Tools")
-            appendLine()
-            appendLine("跨平台通用工具，来自 Pi Coding Agent 和 OmniClaw：")
-            appendLine()
-            tools.values.forEach { tool ->
-                appendLine("### ${tool.name}")
-                appendLine(tool.description)
-                appendLine()
-            }
-        }
-    }
-
-    /**
      * Get tool count
      */
     fun getToolCount(): Int = tools.size
