@@ -8,7 +8,7 @@
 
 ## 1. 功能前因后果（为什么这样设计）
 
-- 项目把 Python 版 X-OmniClaw 重写为**纯 Kotlin 单模块**，核心循环内联到 `AgentLoop.kt`（原 Python agentloop 删除）。
+- 项目为**纯 Kotlin 单模块**架构，核心循环内联到 `AgentLoop.kt`。
 - **为什么每会话独立 AgentLoop**：`AgentLoop.progressFlow` 是 replay=1 的 `MutableSharedFlow<ProgressUpdate>`，全局共享会让 A 会话的进度事件串进 B 会话的悬浮窗/聊天流。所以 `MainEntryNew.createSessionScopedAgentLoop()` 每次 new 独立实例（顺带 new 了 Provider/ConfigLoader，一并解决了单例 Provider 缓存旧 API Key 的历史问题），按 sessionId 存进 `activeSessionLoops`。
 - **为什么只落盘增量消息**：`run()` 返回的 `result.messages` 是"system + 历史回放 + 本轮新增"的完整序列，直接写回 session JSONL 会让下一轮把上一轮的 assistant 气泡重复读回来（OpenRouter/Gemma 会改写历史句，公共前缀对齐失效）。因此 `extractRunDeltaMessages` 以"本轮用户句"为锚点，只保存锚点之后的增量。
 - **为什么上下文预算**：端侧窗口有限，装 App 这种 20+ 轮工具调用会累积海量 tool result。`CONTEXT_BUDGET_RATIO=0.75` 只预支窗口的 75%，超了从最老的 tool 消息开始删。
@@ -26,7 +26,7 @@
      :557 ensureUserMessagePersisted() 先落盘本轮 user（防止 thinking 抢跑）
      :560-567 launch{ progressFlow.collect { ... } }  ← 进度收集绑定本次 run 的 UI 上下文（隔离关键）
      :570-575 result = sessionAgentLoop.run(systemPrompt, userInput, contextHistory, reasoningEnabled=false)
-     :602 remoteReply?.invoke(finalContent)  ← 飞书/HTTP 回执
+     :602 remoteReply?.invoke(finalContent)  ← HTTP 回执
      :617-625 extractRunDeltaMessages(contextHistory, result.messages, userInput)  ← 只取增量
      :626-637 逐条 addMessage(去 system + 去重 user) → sessionManager.save(session)  ← JSONL 落盘
      :639-647 queueMemoryEvolutionEvent(...)  ← 记忆沉淀
