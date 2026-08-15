@@ -530,7 +530,7 @@ Scope yourself to the user's request; on conflict pause and ask; respect stop/au
 
         return """
 ## Memory Recall
-默认只加载 `memory/USER-PROFILE.md` 的精简画像；`MEMORY.md` 与 `memory/IMAGE-MEMORY.md` 只在任务明确需要任务经验、历史偏好、照片或截图信息时通过 `memory_search` / `memory_get` 按需读取，严禁虚构。
+检索只针对两类：`memory_search` 检索按日日志（memory/YYYY-MM-DD.md，含任务记录与上下文），`image_memory_search_entries` 检索画面（memory/IMAGE-MEMORY.md）。`MEMORY.md` 与 `memory/USER-PROFILE.md` 不参与检索，需要时用 `memory_get` 直接读取，严禁虚构。
         """.trimIndent()
     }
 

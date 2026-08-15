@@ -39,6 +39,10 @@ class MemoryManager(
     private val memoryFile = File(workspaceDir, MEMORY_FILE)
     private val memoryDir = File(workspaceDir, MEMORY_DIR)
 
+    /** 检索索引范围：画面（IMAGE-MEMORY.md）与按日日志（YYYY-MM-DD.md）。 */
+    private val IMAGE_MEMORY_FILENAME = "IMAGE-MEMORY.md"
+    private val LOG_FILE_PATTERN = Regex("\\d{4}-\\d{2}-\\d{2}\\.md")
+
     private var embeddingProvider: EmbeddingProvider? = null
     private var memoryIndex: MemoryIndex? = null
 
@@ -111,17 +115,20 @@ class MemoryManager(
 
     /**
      * Get all memory-related files for indexing.
+     *
+     * 检索索引只覆盖两类：画面（IMAGE-MEMORY.md）与按日日志（YYYY-MM-DD.md）。
+     * MEMORY.md、USER-PROFILE.md 与 workspace 根目录 .md 不参与检索索引，
+     * 需要时由 memory_get / readNamedMemoryFile 直接按文件读取。
      */
     private fun getAllMemoryFiles(): List<String> {
         val files = mutableListOf<String>()
-        if (memoryFile.exists()) files.add(memoryFile.absolutePath)
 
-        // All .md files in memory/ directory
-        memoryDir.listFiles { f -> f.isFile && f.name.endsWith(".md") }
-            ?.forEach { files.add(it.absolutePath) }
+        // 画面记忆
+        val imageMemoriesFile = File(memoryDir, IMAGE_MEMORY_FILENAME)
+        if (imageMemoriesFile.exists()) files.add(imageMemoriesFile.absolutePath)
 
-        // Other workspace .md files (SOUL.md, etc.)
-        workspaceDir.listFiles { f -> f.isFile && f.name.endsWith(".md") && f.name != MEMORY_FILE }
+        // 按日日志
+        memoryDir.listFiles { f -> f.isFile && f.name.matches(LOG_FILE_PATTERN) }
             ?.forEach { files.add(it.absolutePath) }
 
         return files
@@ -129,9 +136,20 @@ class MemoryManager(
 
     /**
      * Index a single file (call on file change).
+     *
+     * 索引范围与 [getAllMemoryFiles] 一致：只有画面（IMAGE-MEMORY.md）与按日日志
+     * 会真正写入索引；MEMORY.md / USER-PROFILE.md 等即使写入也不建立索引。
      */
     suspend fun indexFile(file: File, source: String = "memory") {
+        if (!isIndexable(file)) {
+            return
+        }
         memoryIndex?.indexFile(file, source)
+    }
+
+    private fun isIndexable(file: File): Boolean {
+        val name = file.name
+        return name == IMAGE_MEMORY_FILENAME || name.matches(LOG_FILE_PATTERN)
     }
 
     // ---- Existing MemoryManager methods (unchanged) ----

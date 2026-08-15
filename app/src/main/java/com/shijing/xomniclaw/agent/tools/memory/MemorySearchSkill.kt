@@ -16,6 +16,9 @@ import java.io.File
  *
  * Hybrid search: SQLite FTS5 + vector embedding cosine similarity.
  * Falls back to FTS5-only when no embedding provider is configured.
+ *
+ * 检索范围：只针对按日日志（memory/YYYY-MM-DD.md）。MEMORY.md / USER-PROFILE.md /
+ * IMAGE-MEMORY.md 不参与本工具，需要时用 memory_get 直接读取。
  */
 class MemorySearchSkill(
     private val memoryManager: MemoryManager,
@@ -24,9 +27,10 @@ class MemorySearchSkill(
     companion object {
         private const val TAG = "MemorySearchSkill"
         private const val SNIPPET_MAX_CHARS = 700
-        private const val LLM_FUNCTION_DESCRIPTION = "Hybrid search (FTS + optional embedding) over memory files; returns scored snippets. " +
+        private val LOG_FILE_PATTERN = Regex("\\d{4}-\\d{2}-\\d{2}\\.md")
+        private const val LLM_FUNCTION_DESCRIPTION = "Search daily logs (memory/YYYY-MM-DD.md) for past task records and context. " +
             "query is required. maxResults default 6, minScore default 0.35. " +
-            "For IMAGE-MEMORY.md, prefer full memory_get when a whole-file read is viable."
+            "MEMORY.md / USER-PROFILE.md / IMAGE-MEMORY.md are NOT searched by this tool; use memory_get to read them directly."
     }
 
     override val name = "memory_search"
@@ -67,7 +71,15 @@ class MemorySearchSkill(
             // Ensure index is up to date
             memoryManager.syncIndex()
 
-            val results = memoryIndex.hybridSearch(query, maxResults, minScore)
+            // 只返回按日日志（memory/YYYY-MM-DD.md）的命中；其余文件（MEMORY/画像/画面）过滤掉。
+            // 多取候选再过滤，避免日志数量不足时结果过少。
+            val candidateLimit = (maxResults * 4).coerceAtLeast(maxResults)
+            val results = memoryIndex.hybridSearch(query, candidateLimit, minScore)
+                .filter { result ->
+                    val name = try { File(result.path).name } catch (_: Exception) { "" }
+                    name.matches(LOG_FILE_PATTERN)
+                }
+                .take(maxResults)
 
             if (results.isEmpty()) {
                 return SkillResult.success(
@@ -97,9 +109,8 @@ $snippet"""
             val usageHint = buildString {
                 appendLine()
                 appendLine("Next step guidance:")
-                appendLine("- If a result points to memory/IMAGE-MEMORY.md, do not answer with only the path or line range.")
-                appendLine("- For photo questions and gallery-image operations, prefer loading the full compact memory/IMAGE-MEMORY.md via memory_get.")
-                appendLine("- If you still use memory_get on a cited range, read the full entry and summarize the photo content in natural language.")
+                appendLine("- Results only come from daily logs (memory/YYYY-MM-DD.md).")
+                appendLine("- To read MEMORY.md / memory/USER-PROFILE.md / memory/IMAGE-MEMORY.md, use memory_get.")
             }.trimEnd()
 
             val embeddingProvider = memoryManager.getEmbeddingProvider()
