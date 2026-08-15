@@ -29,7 +29,7 @@ object ToolLoopDetection {
     private const val TOOL_CALL_HISTORY_SIZE = 30
     private const val WARNING_THRESHOLD = 10
     private const val CRITICAL_THRESHOLD = 20
-    private const val GLOBAL_CIRCUIT_BREAKER_THRESHOLD = 30
+    private const val GLOBAL_CIRCUIT_BREAKER_THRESHOLD = 20
 
     private val gson = Gson()
 

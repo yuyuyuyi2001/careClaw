@@ -34,13 +34,13 @@ class ToolLoopDetectionTest {
         assertEquals(ToolLoopDetection.LoopDetectionResult.Level.WARNING, d.level)
     }
 
-    /** 全局熔断：相同参数 + 相同结果（无进展）30 次 → CRITICAL */
+    /** 全局熔断：相同参数 + 相同结果（无进展）20 次 → CRITICAL */
     @Test
     fun `no progress streak triggers global circuit breaker`() {
         val state = ToolLoopDetection.SessionState()
 
         var detected: ToolLoopDetection.LoopDetectionResult = ToolLoopDetection.LoopDetectionResult.NoLoop
-        repeat(31) { i ->
+        repeat(21) { i ->
             val result = ToolLoopDetection.detectToolCallLoop(state, "search_app", params)
             if (result is ToolLoopDetection.LoopDetectionResult.LoopDetected) {
                 detected = result
