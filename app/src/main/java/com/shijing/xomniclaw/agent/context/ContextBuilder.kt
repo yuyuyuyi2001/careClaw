@@ -495,14 +495,14 @@ Scope yourself to the user's request; on conflict pause and ask; respect stop/au
 
     /**
      * Resolve the absolute file path for a skill by name.
-     * Falls back to a well-known managed path if not loaded.
+     * Falls back to workspace path if not loaded.
      */
     private fun resolveSkillLocation(skillName: String): String {
         val skill = skillsLoader.getAllSkills().firstOrNull { it.name == skillName }
         if (skill != null && skill.filePath.isNotEmpty()) {
             return skill.filePath
         }
-        return "/sdcard/.xomniclaw/skills/$skillName/SKILL.md"
+        return "/sdcard/.xomniclaw/workspace/skills/$skillName/SKILL.md"
     }
 
     /** TSV 列内禁止字面 tab/换行，避免列错位。 */

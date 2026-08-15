@@ -548,15 +548,10 @@ class ConfigLoader(private val context: Context) {
             map
         } ?: emptyMap()
 
-        val extraDirs = json.optJSONArray("extraDirs")?.let { arr ->
-            (0 until arr.length()).map { arr.getString(it) }
-        } ?: emptyList()
-
         return SkillsConfig(
             allowBundled = json.optJSONArray("allowBundled")?.let { arr ->
                 (0 until arr.length()).map { arr.getString(it) }
             },
-            extraDirs = extraDirs,
             watch = json.optBoolean("watch", true),
             watchDebounceMs = json.optLong("watchDebounceMs", 250),
             entries = entries

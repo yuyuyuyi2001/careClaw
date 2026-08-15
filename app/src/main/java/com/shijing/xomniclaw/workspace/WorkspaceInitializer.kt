@@ -34,7 +34,7 @@ class WorkspaceInitializer(private val context: Context) {
         private const val WORKSPACE_MEMORY_DIR = "$WORKSPACE_DIR/memory"
         private const val WORKSPACE_META_DIR = "$WORKSPACE_DIR/.xomniclaw"
         private const val LEGACY_WORKSPACE_META_DIR = "$WORKSPACE_DIR/.omniclaw"
-        private const val SKILLS_DIR = "$ROOT_DIR/skills"
+        private const val WORKSPACE_SKILLS_DIR = "$WORKSPACE_DIR/skills"
         private const val LOGS_DIR = "$ROOT_DIR/logs"
 
         // 元数据文件
@@ -80,9 +80,8 @@ class WorkspaceInitializer(private val context: Context) {
             initializeWorkspaceFiles()
             ensureBootstrapMemoryFiles()
 
-            // 4. 拷贝内置 skills 到用户可编辑目录
-            // Aligned with OmniClaw: ~/.xomniclaw/skills/ → /sdcard/.xomniclaw/skills/
-            copyBundledSkills()
+            // 4. 拷贝内置种子技能到 workspace/skills（唯一技能目录，不覆盖已存在文件）
+            copySeedSkills()
 
             // 5. 创建 workspace 元数据
             createWorkspaceState()
@@ -128,15 +127,14 @@ class WorkspaceInitializer(private val context: Context) {
     }
 
     /**
-     * Ensure bundled skills are deployed.
-     * Call this on every app start — only copies missing skills, won't overwrite.
+     * 确保种子技能已部署到 workspace/skills（每次启动调用，只拷贝缺失、不覆盖）。
      */
-    fun ensureBundledSkills() {
+    fun ensureSeedSkills() {
         try {
-            File(SKILLS_DIR).mkdirs()
-            copyBundledSkills()
+            File(WORKSPACE_SKILLS_DIR).mkdirs()
+            copySeedSkills()
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to ensure bundled skills: ${e.message}")
+            Log.w(TAG, "Failed to ensure seed skills: ${e.message}")
         }
     }
 
@@ -222,7 +220,7 @@ class WorkspaceInitializer(private val context: Context) {
             WORKSPACE_DIR,
             WORKSPACE_MEMORY_DIR,
             WORKSPACE_META_DIR,
-            SKILLS_DIR,
+            WORKSPACE_SKILLS_DIR,
             LOGS_DIR
         )
 
@@ -388,14 +386,11 @@ class WorkspaceInitializer(private val context: Context) {
     }
 
     /**
-     * Copy bundled skills from assets to user-editable /sdcard/.xomniclaw/skills/
-     * 
-     * Aligned with OmniClaw: skills live in ~/.xomniclaw/skills/ where users can
-     * customize, add, or remove them. Bundled skills are copied on first init only.
-     * Existing user-modified skills are NOT overwritten.
+     * 把 assets/skills 的内置种子技能拷贝到唯一技能目录 /sdcard/.xomniclaw/workspace/skills/。
+     * 只在目标 SKILL.md 缺失时拷贝，用户沉淀/修改的技能永不覆盖。
      */
-    private fun copyBundledSkills() {
-        val skillsDir = File(SKILLS_DIR)
+    private fun copySeedSkills() {
+        val skillsDir = File(WORKSPACE_SKILLS_DIR)
         val assetManager = context.assets
 
         try {
@@ -441,7 +436,7 @@ class WorkspaceInitializer(private val context: Context) {
                 Log.i(TAG, "📦 Skills: copied $copiedCount, skipped $skippedCount (already exist)")
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to copy bundled skills: ${e.message}")
+            Log.w(TAG, "Failed to copy seed skills: ${e.message}")
         }
     }
 }

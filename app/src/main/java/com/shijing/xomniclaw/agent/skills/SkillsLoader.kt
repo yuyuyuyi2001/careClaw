@@ -4,46 +4,34 @@ package com.shijing.xomniclaw.agent.skills
  * OmniClaw Source Reference:
  * - ../xomniclaw/src/skills/(all)
  *
- * OmniClaw adaptation: bundled/managed/workspace skill discovery and cache.
+ * OmniClaw adaptation: workspace-first skill loading.
  */
 
 
 import android.content.Context
-import android.os.FileObserver
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import com.shijing.xomniclaw.config.ConfigLoader
 import com.shijing.xomniclaw.workspace.WorkspaceInitializer
 import java.io.File
 
 /**
- * Skills Loader — unified skill loading with full OmniClaw alignment.
+ * Skills Loader — 精简版技能加载（单层 workspace）。
  *
- * Loading priority (higher overrides lower, by name dedup):
- * 1. extraDirs (lowest) — skills.extraDirs config
- * 2. Bundled Skills — assets/skills/
- * 3. Managed Skills — /sdcard/.xomniclaw/skills/
- * 4. Plugin Skills — enabled plugin skill directories
- * 5. Workspace Skills (highest) — /sdcard/.xomniclaw/workspace/skills/
+ * 技能来源只有一层：/sdcard/.xomniclaw/workspace/skills/
+ * - 内置种子（首次启动由 WorkspaceInitializer 从 assets 拷入，不覆盖）
+ * - 对话操作沉淀（用户/Agent 写入即生效）
  *
- * Features aligned with OmniClaw:
- * - extraDirs support (skills.extraDirs)
- * - Plugin skills (plugins.entries.<name>.skills dirs)
- * - Environment injection (skills.entries.<key>.env / apiKey)
- * - Hot reload with debounce (skills.watch / skills.watchDebounceMs)
- * - Managed + Workspace directory monitoring
- * - Unified SkillParser (no duplicate parsers)
- * - Consistent managed path (skills/ not .skills/)
+ * 特性：
+ * - 每次 loadSkills() 全量重扫，永远最新（技能文件小，成本可忽略）
+ * - 环境变量注入（skills.entries.<key>.env / apiKey）
+ * - 统一 SkillParser（单一解析器）
  */
 class SkillsLoader(private val context: Context) {
     companion object {
         private const val TAG = "SkillsLoader"
 
-        // Three-tier Skills directories (aligns with OmniClaw architecture)
-        private const val BUNDLED_SKILLS_PATH = "skills"  // assets path
-        private const val MANAGED_SKILLS_DIR = "/sdcard/.xomniclaw/skills"  // aligns with ~/.xomniclaw/skills/
-        private const val WORKSPACE_SKILLS_DIR = "/sdcard/.xomniclaw/workspace/skills"  // aligns with ~/.xomniclaw/workspace/
+        // 唯一技能目录：workspace/skills（内置种子 + 对话沉淀）
+        private const val WORKSPACE_SKILLS_DIR = "/sdcard/.xomniclaw/workspace/skills"
 
         // Skill file name
         private const val SKILL_FILE_NAME = "SKILL.md"
@@ -59,232 +47,35 @@ class SkillsLoader(private val context: Context) {
         fun getLastSelectionTraceForBridge(): String = lastSelectionTraceForBridge
     }
 
-    // Skills cache
-    private val skillsCache = mutableMapOf<String, SkillDocument>()
-    private var cacheValid = false
-
-    /**
-     * 用户可写技能目录（managed / workspace）的指纹快照。
-     *
-     * 设计动机：
-     * - `MainEntryNew` 是进程级单例，`ContextBuilder.skillsLoader` 整个 App 生命周期只有一份；
-     *   首次 `loadSkills()` 后 `cacheValid=true` 会永久锁住。
-     * - 现实中 `enableHotReload()` 没有任何调用方，且 `FileObserver` 不递归监听子目录，
-     *   导致用户在 `/sdcard/.xomniclaw/workspace/skills/<name>/SKILL.md` 新增的技能
-     *   永远进不了 catalog，必须重启 App 才能生效。
-     * - 这里改用 mtime 指纹做"懒失效"：每次 `loadSkills()` 入口低成本采样
-     *   managed/workspace 顶层 + 各子目录 + 各 SKILL.md 的 lastModified()，
-     *   一旦与上次记录不同就主动 invalidate cache 并全量重扫。
-     *   单次会话内的多次 loadSkills 仍走缓存，无重复磁盘 IO 风险。
-     */
-    @Volatile
-    private var lastUserDirsFingerprint: Long = Long.MIN_VALUE
-
-    // Config reference
+    // Config reference（供 resolveSkillEnv / checkRequirements 读取）
     private val configLoader = ConfigLoader(context)
-
-    // File monitoring (hot reload with debounce)
-    private val fileObservers = mutableListOf<FileObserver>()
-    private var hotReloadEnabled = false
-    private val handler = Handler(Looper.getMainLooper())
-    private var pendingReload: Runnable? = null
 
     /**
      * Load all Skills
-     * Priority override: Workspace > Managed > Bundled > extraDirs
+     * Source: workspace/skills only
      *
      * @return Map<name, SkillDocument>
      */
     fun loadSkills(): Map<String, SkillDocument> {
-        // 指纹校验：managed / workspace 目录任何 SKILL.md 增删改都会让指纹变化，
-        // 这样无需重启 App 也无需 FileObserver，新录制的技能下一次会话立即生效。
-        val currentFingerprint = computeUserDirsFingerprint()
-        val cacheUsable = cacheValid &&
-            skillsCache.isNotEmpty() &&
-            currentFingerprint == lastUserDirsFingerprint
-        if (cacheUsable) {
-            Log.d(TAG, "返回缓存的 Skills (${skillsCache.size} 个)")
-            return skillsCache.toMap()
-        }
-        if (cacheValid && currentFingerprint != lastUserDirsFingerprint) {
-            Log.i(
-                TAG,
-                "检测到 Managed/Workspace skills 目录变化 (fp: $lastUserDirsFingerprint -> $currentFingerprint)，重新扫描"
-            )
-        }
+        // 每次全量重扫：技能文件小（单个几 KB），全量读取解析成本远小于一次 LLM 调用，
+        // 换来「永远最新、无需缓存/指纹/监听」的最简实现。新写入的技能下次调用即生效。
+        val skills = mutableMapOf<String, SkillDocument>()
 
-        Log.d(TAG, "开始加载 Skills...")
-        skillsCache.clear()
-
-        // 与 MyApplication 双保险：首次/缓存失效时先把 APK assets 里缺的技能文件补拷到
-        // /sdcard/.xomniclaw/skills/，避免「进程未冷启动、或初始化顺序」导致 managed 目录空壳。
+        // 与 MyApplication 双保险：把 APK assets 里缺的种子技能补拷到 workspace/skills，
+        // 避免「进程未冷启动、或初始化顺序」导致技能目录空壳。
         try {
-            WorkspaceInitializer(context).ensureBundledSkills()
+            WorkspaceInitializer(context).ensureSeedSkills()
         } catch (e: Exception) {
-            Log.w(TAG, "ensureBundledSkills（loadSkills 前）失败: ${e.message}")
+            Log.w(TAG, "ensureSeedSkills（loadSkills 前）失败: ${e.message}")
         }
 
-        val config = configLoader.loadOmniClawConfig()
+        val workspaceCount = loadWorkspaceSkills(skills)
 
-        // Load by priority (lowest first, higher overrides)
-        val extraCount = loadExtraDirsSkills(skillsCache, config.skills.extraDirs)
-        val bundledCount = loadBundledSkills(skillsCache)
-        val managedCount = loadManagedSkills(skillsCache)
-        val pluginCount = loadPluginSkills(skillsCache, config)
-        val workspaceCount = loadWorkspaceSkills(skillsCache)
+        Log.i(TAG, "Skills 加载完成: 总计 ${skills.size} 个")
+        Log.i(TAG, "  - Workspace: $workspaceCount")
 
-        cacheValid = true
-        // 重扫完成后用「重扫前采样的指纹」作为基线：若用户恰好在加载过程中又写盘，
-        // 下次调用时新指纹会与基线不同 → 再次触发失效，不会漏吃改动。
-        lastUserDirsFingerprint = currentFingerprint
-
-        Log.i(TAG, "Skills 加载完成: 总计 ${skillsCache.size} 个")
-        Log.i(TAG, "  - extraDirs: $extraCount")
-        Log.i(TAG, "  - Bundled: $bundledCount")
-        Log.i(TAG, "  - Managed: $managedCount (覆盖)")
-        Log.i(TAG, "  - Plugin: $pluginCount (覆盖)")
-        Log.i(TAG, "  - Workspace: $workspaceCount (覆盖)")
-
-        return skillsCache.toMap()
+        return skills
     }
-
-    /**
-     * 计算 managed + workspace 两个用户可写目录的「轻量指纹」。
-     *
-     * 采样维度：
-     *  - 顶层目录 mtime（子目录被增/删时变化）
-     *  - 每个 skill 子目录 mtime（其内 SKILL.md 被增/删时变化）
-     *  - 每个 SKILL.md mtime（文件内容被改写时变化）
-     *  - 子目录名（极端场景：删旧 + 新建同名子目录、mtime 一致）
-     *
-     * 仅做磁盘元数据查询（不读文件内容），开销远小于一次 LLM 调用。
-     * extraDirs/plugin 来源属高级配置，刷新该来源仍需 reload()/重启。
-     */
-    private fun computeUserDirsFingerprint(): Long {
-        var hash = 1125899906842597L  // FNV-1a offset basis (64-bit)
-        hash = mixDirIntoFingerprint(File(MANAGED_SKILLS_DIR), hash)
-        hash = mixDirIntoFingerprint(File(WORKSPACE_SKILLS_DIR), hash)
-        return hash
-    }
-
-    private fun mixDirIntoFingerprint(dir: File, seed: Long): Long {
-        if (!dir.exists()) {
-            // 用 absolutePath.hashCode() 区分 "managed 缺失" / "workspace 缺失"，
-            // 避免两者都不存在时指纹完全相同。
-            return seed * 31 + dir.absolutePath.hashCode().toLong()
-        }
-        var h = seed * 31 + dir.lastModified()
-        // 仅枚举 SKILL.md 所在的子目录；按名字排序保证指纹与 listFiles 实现顺序无关。
-        val children = (dir.listFiles { f -> f.isDirectory } ?: emptyArray())
-            .sortedBy { it.name }
-        for (child in children) {
-            h = h * 31 + child.name.hashCode().toLong()
-            h = h * 31 + child.lastModified()
-            val skillFile = File(child, SKILL_FILE_NAME)
-            if (skillFile.exists()) {
-                h = h * 31 + skillFile.lastModified()
-            }
-        }
-        return h
-    }
-
-    /**
-     * Reload Skills (clear cache)
-     */
-    fun reload() {
-        Log.i(TAG, "重新加载 Skills...")
-        cacheValid = false
-        loadSkills()
-    }
-
-    /**
-     * Enable hot reload with debounce.
-     * Monitors Workspace + Managed directories.
-     * Aligns with OmniClaw: skills.watch + skills.watchDebounceMs
-     */
-    fun enableHotReload() {
-        if (hotReloadEnabled) {
-            Log.d(TAG, "热重载已启用")
-            return
-        }
-
-        val config = configLoader.loadOmniClawConfig()
-        if (!config.skills.watch) {
-            Log.d(TAG, "热重载已在配置中禁用 (skills.watch=false)")
-            return
-        }
-
-        val debounceMs = config.skills.watchDebounceMs
-
-        // Monitor both Workspace and Managed directories
-        val dirsToWatch = mutableListOf<File>()
-        File(WORKSPACE_SKILLS_DIR).let { if (it.exists()) dirsToWatch.add(it) }
-        File(MANAGED_SKILLS_DIR).let { if (it.exists()) dirsToWatch.add(it) }
-
-        // Also monitor extraDirs
-        config.skills.extraDirs.forEach { dir ->
-            File(dir).let { if (it.exists()) dirsToWatch.add(it) }
-        }
-
-        if (dirsToWatch.isEmpty()) {
-            Log.w(TAG, "没有可监控的 Skills 目录")
-            return
-        }
-
-        for (dir in dirsToWatch) {
-            try {
-                val observer = object : FileObserver(dir, CREATE or MODIFY or DELETE) {
-                    override fun onEvent(event: Int, path: String?) {
-                        if (path != null && path.endsWith(SKILL_FILE_NAME)) {
-                            Log.i(TAG, "检测到 Skill 文件变化: ${dir.name}/$path")
-                            scheduleReload(debounceMs)
-                        }
-                    }
-                }
-                observer.startWatching()
-                fileObservers.add(observer)
-                Log.i(TAG, "✅ 监控: ${dir.absolutePath}")
-            } catch (e: Exception) {
-                Log.e(TAG, "启用热重载失败: ${dir.absolutePath}", e)
-            }
-        }
-
-        hotReloadEnabled = true
-        Log.i(TAG, "✅ 热重载已启用 (debounce=${debounceMs}ms, 监控 ${dirsToWatch.size} 个目录)")
-    }
-
-    /**
-     * Schedule a debounced reload
-     */
-    private fun scheduleReload(debounceMs: Long) {
-        // Cancel any pending reload
-        pendingReload?.let { handler.removeCallbacks(it) }
-
-        // Schedule new reload
-        val runnable = Runnable {
-            Log.i(TAG, "Debounce 完成，执行重新加载...")
-            reload()
-        }
-        pendingReload = runnable
-        handler.postDelayed(runnable, debounceMs)
-    }
-
-    /**
-     * Disable hot reload
-     */
-    fun disableHotReload() {
-        pendingReload?.let { handler.removeCallbacks(it) }
-        pendingReload = null
-        fileObservers.forEach { it.stopWatching() }
-        fileObservers.clear()
-        hotReloadEnabled = false
-        Log.i(TAG, "热重载已禁用")
-    }
-
-    /**
-     * Check if hot reload is enabled
-     */
-    fun isHotReloadEnabled(): Boolean = hotReloadEnabled
 
     /**
      * Get all loaded skills
@@ -552,157 +343,6 @@ class SkillsLoader(private val context: Context) {
     // ==================== Private: Loading ====================
 
     /**
-     * Load skills from extraDirs (lowest priority)
-     * Aligns with OmniClaw: skills.load.extraDirs
-     */
-    private fun loadExtraDirsSkills(
-        skills: MutableMap<String, SkillDocument>,
-        extraDirs: List<String>
-    ): Int {
-        var count = 0
-        for (dirPath in extraDirs) {
-            val dir = File(dirPath)
-            if (!dir.exists() || !dir.isDirectory) {
-                Log.w(TAG, "extraDirs 目录不存在: $dirPath")
-                continue
-            }
-            count += loadSkillsFromDirectory(dir, SkillSource.EXTRA, skills)
-        }
-        return count
-    }
-
-    /**
-     * Load bundled Skills from assets/skills/
-     */
-    private fun loadBundledSkills(skills: MutableMap<String, SkillDocument>): Int {
-        var count = 0
-        val loadedNames = mutableListOf<String>()
-
-        try {
-            val skillDirs = context.assets.list(BUNDLED_SKILLS_PATH) ?: emptyArray()
-            Log.d(TAG, "扫描 Bundled Skills: ${skillDirs.size} 个目录")
-
-            for (dir in skillDirs) {
-                val filesInDir = try {
-                    context.assets.list("$BUNDLED_SKILLS_PATH/$dir") ?: emptyArray()
-                } catch (_: Exception) {
-                    emptyArray()
-                }
-                // 只处理真正的技能子目录（含 SKILL.md），忽略 assets/skills 下的杂项文件
-                if (SKILL_FILE_NAME !in filesInDir) continue
-
-                val skillPath = "$BUNDLED_SKILLS_PATH/$dir/$SKILL_FILE_NAME"
-                try {
-                    val content = context.assets.open(skillPath)
-                        .bufferedReader().use { it.readText() }
-
-                    val skill = SkillParser.parse(content, "assets://$skillPath")
-                        .copy(source = SkillSource.BUNDLED, filePath = "assets://$skillPath")
-                    skills[skill.name] = skill
-                    loadedNames.add(skill.name)
-                    count++
-                } catch (e: Exception) {
-                    Log.w(
-                        TAG,
-                        "⚠️ Bundled skill「$dir」缺少或无法读取 assets/$skillPath（${e.javaClass.simpleName}: ${e.message}）。请检查 APK 内是否包含 $SKILL_FILE_NAME。"
-                    )
-                }
-            }
-            if (loadedNames.isNotEmpty()) {
-                Log.i(
-                    TAG,
-                    "Bundled skills 已从 APK 加载 ${loadedNames.size} 个: ${loadedNames.sorted().joinToString(", ")}"
-                )
-            } else {
-                Log.w(TAG, "Bundled skills: 0 个成功解析（APK 的 assets/$BUNDLED_SKILLS_PATH 下无有效 SKILL.md）")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "扫描 Bundled Skills 失败", e)
-        }
-
-        return count
-    }
-
-    /**
-     * Load managed Skills from /sdcard/.xomniclaw/skills/
-     */
-    private fun loadManagedSkills(skills: MutableMap<String, SkillDocument>): Int {
-        val managedDir = File(MANAGED_SKILLS_DIR)
-        if (!managedDir.exists()) {
-            Log.d(TAG, "Managed Skills 目录不存在: $MANAGED_SKILLS_DIR")
-            return 0
-        }
-        return loadSkillsFromDirectory(managedDir, SkillSource.MANAGED, skills)
-    }
-
-    /**
-     * Load plugin Skills from enabled plugins.
-     *
-     * Aligns with OmniClaw: plugins can ship skills by declaring `skills` dirs
-     * in omniclaw.plugin.json. On Android, we read plugins.entries from config
-     * and scan each enabled plugin's skill directories.
-     *
-     * Plugin skill directories are resolved relative to the extensions base path
-     * (assets://extensions/<pluginName>/ for bundled, or filesystem for installed).
-     */
-    private fun loadPluginSkills(
-        skills: MutableMap<String, SkillDocument>,
-        config: com.shijing.xomniclaw.config.XOmniClawConfig
-    ): Int {
-        var count = 0
-
-        for ((pluginName, pluginEntry) in config.plugins.entries) {
-            if (!pluginEntry.enabled) continue
-
-            // Determine skill dirs for this plugin
-            val skillDirs = pluginEntry.skills.ifEmpty { listOf("skills") }
-
-            for (skillDir in skillDirs) {
-                // Try bundled assets first (assets://extensions/<plugin>/<dir>/)
-                val assetsPath = "extensions/$pluginName/$skillDir"
-                try {
-                    val assetDirs = context.assets.list(assetsPath)
-                    if (assetDirs != null && assetDirs.isNotEmpty()) {
-                        for (dir in assetDirs) {
-                            val skillMdPath = "$assetsPath/$dir/$SKILL_FILE_NAME"
-                            try {
-                                val content = context.assets.open(skillMdPath)
-                                    .bufferedReader().use { it.readText() }
-                                val skill = SkillParser.parse(content, "assets://$skillMdPath")
-                                    .copy(source = SkillSource.PLUGIN, filePath = "assets://$skillMdPath")
-
-                                val isOverride = skills.containsKey(skill.name)
-                                skills[skill.name] = skill
-                                count++
-
-                                val action = if (isOverride) "覆盖" else "新增"
-                                Log.d(TAG, "✅ Plugin/$pluginName ($action): ${skill.name}")
-                            } catch (e: Exception) {
-                                // Not a valid skill dir, skip
-                            }
-                        }
-                        continue // Found in assets, don't check filesystem
-                    }
-                } catch (e: Exception) {
-                    // Not in assets, try filesystem
-                }
-
-                // Try filesystem (installed plugins)
-                val fsPath = File("/sdcard/.xomniclaw/extensions/$pluginName/$skillDir")
-                if (fsPath.exists() && fsPath.isDirectory) {
-                    count += loadSkillsFromDirectory(fsPath, SkillSource.PLUGIN, skills)
-                }
-            }
-        }
-
-        if (count > 0) {
-            Log.i(TAG, "Plugin Skills: $count 个加载完成")
-        }
-
-        return count
-    }
-
-    /**
      * Load workspace Skills from /sdcard/.xomniclaw/workspace/skills/
      */
     private fun loadWorkspaceSkills(skills: MutableMap<String, SkillDocument>): Int {
@@ -729,21 +369,11 @@ class SkillsLoader(private val context: Context) {
         for (skillDir in skillDirs) {
             val skillFile = File(skillDir, SKILL_FILE_NAME)
             if (!skillFile.exists()) {
-                if (source == SkillSource.MANAGED || source == SkillSource.WORKSPACE) {
-                    val matchesBundledAssetName = try {
-                        context.assets.list(BUNDLED_SKILLS_PATH)?.contains(skillDir.name) == true
-                    } catch (_: Exception) {
-                        false
-                    }
-                    val bundledHint = if (matchesBundledAssetName) {
-                        " [bundled 同名：APK 内有该技能，多为 Managed 补拷不完整；重启应用触发 ensureBundledSkills]"
-                    } else {
-                        ""
-                    }
+                if (source == SkillSource.WORKSPACE) {
                     Log.w(
                         TAG,
                         "⚠️ ${source.displayName} 技能目录「${skillDir.name}」存在但缺少 $SKILL_FILE_NAME: " +
-                            "${skillDir.absolutePath}.$bundledHint"
+                            "${skillDir.absolutePath}"
                     )
                 }
                 continue

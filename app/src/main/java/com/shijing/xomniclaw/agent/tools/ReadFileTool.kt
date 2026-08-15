@@ -84,8 +84,8 @@ class ReadFileTool(
                 return ToolResult.success(file.readText(Charsets.UTF_8))
             }
 
-            // 2) 托管技能目录空壳：/sdcard/.xomniclaw/skills/<name>/SKILL.md 缺失时回退 APK
-            val skillMatch = Regex("^/sdcard/\\.omniclaw/skills/([^/]+)/SKILL\\.md$").find(trimmed)
+            // 2) 技能目录空壳：/sdcard/.xomniclaw/workspace/skills/<name>/SKILL.md 缺失时回退 APK assets 种子
+            val skillMatch = Regex("^/sdcard/\\.xomniclaw/workspace/skills/([^/]+)/SKILL\\.md$").find(trimmed)
             if (skillMatch != null && context != null) {
                 val skillName = skillMatch.groupValues[1]
                 val assetPath = "skills/$skillName/SKILL.md"

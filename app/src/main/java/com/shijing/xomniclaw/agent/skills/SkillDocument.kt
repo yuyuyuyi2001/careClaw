@@ -69,12 +69,9 @@ data class SkillDocument(
 
     /**
      * Skill source
-     * "bundled" - Built-in at assets/skills/
-     * "managed" - From /sdcard/.xomniclaw/skills/ (aligns with ~/.xomniclaw/skills/)
-     * "workspace" - From /sdcard/.xomniclaw/workspace/skills/ (aligns with ~/.xomniclaw/workspace/)
-     * "extra" - From extraDirs configuration
+     * "workspace" - /sdcard/.xomniclaw/workspace/skills/（技能唯一来源：内置种子 + 对话沉淀）
      */
-    val source: SkillSource = SkillSource.BUNDLED
+    val source: SkillSource = SkillSource.WORKSPACE
 ) {
     /**
      * Get formatted content (with title)
@@ -163,11 +160,7 @@ data class SkillMetadata(
  * Aligns with OmniClaw's multi-tier architecture
  */
 enum class SkillSource(val displayName: String) {
-    BUNDLED("bundled"),      // assets/skills/
-    MANAGED("managed"),      // /sdcard/.xomniclaw/skills/ (aligns with ~/.xomniclaw/skills/)
-    WORKSPACE("workspace"),  // /sdcard/.xomniclaw/workspace/skills/ (aligns with ~/.xomniclaw/workspace/)
-    EXTRA("extra"),          // extraDirs configuration (lowest priority)
-    PLUGIN("plugin")         // Plugin-provided skills (aligns with omniclaw.plugin.json skills dirs)
+    WORKSPACE("workspace")   // /sdcard/.xomniclaw/workspace/skills/（技能唯一来源：内置种子 + 对话沉淀）
 }
 
 /**

@@ -297,8 +297,8 @@ class MyApplication : Application(), Application.ActivityLifecycleCallbacks {
                 Log.d(TAG, "Workspace 已初始化: ${initializer.getWorkspacePath()}")
             }
 
-            // Always ensure bundled skills and memory templates are deployed (copies missing, won't overwrite)
-            initializer.ensureBundledSkills()
+            // Always ensure seed skills and memory templates are deployed (copies missing, won't overwrite)
+            initializer.ensureSeedSkills()
             initializer.ensureBootstrapMemoryFiles()
 
         } catch (e: Exception) {

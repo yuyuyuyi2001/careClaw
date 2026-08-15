@@ -97,7 +97,6 @@ data class AgentConfig(
 
 data class SkillsConfig(
     val allowBundled: List<String>? = null,
-    val extraDirs: List<String> = emptyList(),
     val watch: Boolean = true,
     val watchDebounceMs: Long = 250,
     val entries: Map<String, SkillConfig> = emptyMap()

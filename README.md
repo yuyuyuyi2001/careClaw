@@ -26,8 +26,8 @@ CareClaw is an **edge-native multimodal Android agent** (Observe–Reason–Act)
 | **记忆三件套（核心亮点）** | 工作记忆（hybrid search + 上下文压缩）· Gallery Memory（相册扫描/摘要/主题检索）· Memory Evolution（定时增量画像） |
 | **远程入口** | HTTP（NanoHTTPD 端口 8765，`GET /api/status` + `POST /api/inject`，ADB/本地调试兜底） |
 | **安全层** | 指令白名单 + 高危二次确认 + 一键停止 + 审计日志 |
-| **教学模式** | 非 root 录制安装流程 → 生成 SKILL.md → 下次一句话完成 |
-| **SKILL.md 技能热加载** | install / app-search / gallery-qa / gallery-memory / memory-evolution 等 |
+| **SKILL 固化复用** | 一次成功对话的操作路径沉淀为 SKILL.md → 说技能名一句话复用 |
+| **SKILL.md 技能加载** | workspace 单层目录（内置种子 + 对话沉淀），每次全量重扫即时生效 |
 | **极简 UI** | 主界面（对话 / 状态 / 设置三 Tab）+ 悬浮窗进度 |
 
 ---
@@ -46,7 +46,7 @@ CareClaw is an **edge-native multimodal Android agent** (Observe–Reason–Act)
 关键包结构（`app/src/main/java/` 下）：
 
 ```
-agent/          # AgentLoop + context + session + skills + tools + memory + behavior
+agent/          # AgentLoop + context + session + skills + tools + memory
 accessibility/  # 感知层（无障碍服务 + 截屏 + 权限页）
 voice/          # 录音 → LLM 理解（无固定 STT）+ TTS 外围
 providers/      # UnifiedLLMProvider（OpenAI 兼容）+ ApiAdapter
@@ -81,7 +81,7 @@ powershell -ExecutionPolicy Bypass -File ..\scripts\count_lines.ps1 -Root $PWD  
 
 1. **远程装 App**：本地用 HTTP 注入或 ADB broadcast 发指令（如 `PHONE_FORCLAW_SEND_MESSAGE` → "帮我安装微信"），Agent 在手机商店完成搜索-下载-安装-验证并回报。
 2. **语音指令**：主界面长按说话 → 录音 → LLM 理解 → 走 Agent 闭环执行。
-3. **教学模式**：`capture_behavior` 技能录制一次安装流程 → 生成 SKILL.md → 下次一句话完成。
+3. **技能复用**：沉淀的 SKILL.md（内置 app-search 等种子 + 对话沉淀）说技能名一句话复用。
 
 **真机需要**：无障碍 + 悬浮窗 + 截图授权 + 存储 + 安装未知来源权限（iQOO Z10 Turbo+ / vivo 应用商店验证链路）。
 
